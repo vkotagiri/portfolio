@@ -1,0 +1,5 @@
+env_portfolio
+.env
+__pycache__/
+*.pyc
+

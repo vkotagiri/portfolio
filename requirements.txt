@@ -1,0 +1,36 @@
+# --- Web & templating ---
+fastapi==0.115.5
+uvicorn[standard]==0.31.1
+jinja2==3.1.4
+
+# --- CLI (pin these to avoid Typer/Click help crash) ---
+typer==0.12.3
+click==8.1.7
+rich==13.7.1
+
+# --- Config ---
+pydantic==2.9.2
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# --- Data & DB ---
+pandas==2.2.2
+numpy==1.26.4
+SQLAlchemy==2.0.36
+requests==2.32.3
+python-dateutil==2.9.0.post0
+
+# --- Analysis / math (used for factor/regressions etc.) ---
+statsmodels==0.14.2
+pandas-market-calendars==4.4.2
+
+# --- Providers ---
+yfinance==0.2.43
+# (Tiingo uses requests; no extra package needed)
+
+# --- Plotting (for optional infographic rendering) ---
+matplotlib==3.9.2
+
+# --- Optional extras (uncomment if/when you need them) ---
+# openai==1.51.0
+# psycopg2-binary==2.9.9   # only if you switch from SQLite to Postgres

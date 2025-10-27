@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weekly Deep Dive Report</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <h1>Weekly Deep Dive Report</h1>
+    <p>Week ending {{ week_end }} | Generated: {{ generated_ts }}</p>
+  </header>
+
+  <section>
+    <h2>Executive Summary</h2>
+    <ul>
+      <li>Portfolio weekly return: Data not available</li>
+      <li>SPY weekly return: {{ spy_weekly_return }}</li>
+      <li>Risk-free (1-week T-bill): {{ risk_free }}</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Per-Stock Details</h2>
+    {% for p in positions %}
+      <div class="card">
+        <h3>{{ p.ticker }} — Shares: {{ p.shares }} — Weight: {{ p.weight_pct }}%</h3>
+        <p><strong>Average Cost:</strong> {{ p.avg_cost }} &nbsp; <strong>Total Cost:</strong> {{ p.total_cost }}</p>
+        <p><strong>Current Price:</strong> {{ p.price }} (as of {{ p.timestamp }})</p>
+        <p><strong>Weekly change:</strong> {{ p.weekly_change }} ({{ p.week_dates[0] }} → {{ p.week_dates[-1] }})</p>
+        <p><strong>Market Value:</strong> {{ p.market_value }}</p>
+        <p><strong>Unrealized P&L:</strong> {{ p.unreal_gl }} ({{ p.unreal_gl_pct }})</p>
+        <p><strong>RSI(14):</strong> {{ p.rsi14 }} | <strong>MACD(12,26,9):</strong> {{ p.macd }}</p>
+        <p><strong>50D/200D SMA:</strong> {{ p.sma50 }} / {{ p.sma200 }} | <strong>Trend Flags:</strong> {{ p.trend_flags }}</p>
+        <p><strong>Analyst Activity (7d):</strong> {{ p.analyst_activity }}</p>
+        <p><strong>News (7d):</strong> {{ p.news }}</p>
+        <p><strong>Options (nearest weekly):</strong> {{ p.options }}</p>
+        <p><em>Source:</em> {{ p.source }}</p>
+      </div>
+    {% endfor %}
+  </section>
+
+  <section>
+    <h2>Portfolio Summary</h2>
+    <p><strong>Total Market Value:</strong> {{ total_market_value }}</p>
+    <p><em>Note:</em> {{ notes }}</p>
+  </section>
+
+  <footer>
+    <p>© Agentic Portfolio</p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,1330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Weekly Deep Dive Report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.45; margin: 24px; color: #0f172a; }
+  h1 { margin: 0 0 4px 0; font-size: 1.6rem; }
+  h2 { margin: 16px 0 8px 0; font-size: 1.2rem; }
+  .muted { color: #475569; font-size: 0.95rem; }
+  .section { margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+  .holding { padding: 12px 0; border-bottom: 1px dashed #e2e8f0; }
+  .title { font-weight: 700; font-size: 1.05rem; }
+  .pill-red { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#cc1f1a; }
+  .pill-green { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#15803d; }
+  .pill-blue { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#1d4ed8; }
+  .kv { margin: 2px 0; }
+  .kv b { color:#0f172a; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f8fafc; }
+  .col-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+  .rsi-overbought { color:#b91c1c; font-weight:600; }
+  .rsi-oversold { color:#1d4ed8; font-weight:600; }
+</style>
+</head>
+<body>
+  <h1>Weekly Deep Dive Report</h1>
+  <div class="muted">Week ending 2025-10-24 | Generated: 2025-10-26T19:11:16.100</div>
+
+  <div class="section">
+    <div class="kv"><b>Portfolio weekly return:</b> 2.62%</div>
+    <div class="kv"><b>SPY weekly return:</b> 0.89%</div>
+    <div class="kv"><b>Risk-free (1-week T-bill):</b> Data not available</div>
+    <div class="kv"><b>Breadth:</b> 25 up / 8 down</div>
+    <div class="kv"><b>Multi-horizon:</b>
+      1M 8.43% (SPY 2.92%),
+      3M 12.51% (SPY 6.62%),
+      6M 38.83% (SPY 23.70%),
+      12M 27.58% (SPY 17.51%)
+    </div>
+  </div>
+
+  <div class="section grid">
+    <div>
+      <h2>Top 5 Weekly Contributors</h2>
+      <table>
+        <thead><tr><th>Ticker</th><th class="col-num">Start Wt</th><th class="col-num">Ret %</th><th class="col-num">CTR %</th><th class="col-num">$ Impact</th></tr></thead>
+        <tbody>
+              <tr>
+                <td>MU</td>
+                <td class="col-num">8.10%</td>
+                <td class="col-num">5.92%</td>
+                <td class="col-num">0.48%</td>
+                <td class="col-num">2474.50</td>
+              </tr>
+              <tr>
+                <td>ISRG</td>
+                <td class="col-num">2.13%</td>
+                <td class="col-num">19.20%</td>
+                <td class="col-num">0.41%</td>
+                <td class="col-num">2112.96</td>
+              </tr>
+              <tr>
+                <td>DELL</td>
+                <td class="col-num">5.03%</td>
+                <td class="col-num">7.66%</td>
+                <td class="col-num">0.39%</td>
+                <td class="col-num">1986.64</td>
+              </tr>
+              <tr>
+                <td>NVDA</td>
+                <td class="col-num">14.28%</td>
+                <td class="col-num">1.98%</td>
+                <td class="col-num">0.28%</td>
+                <td class="col-num">1458.86</td>
+              </tr>
+              <tr>
+                <td>AMD</td>
+                <td class="col-num">4.43%</td>
+                <td class="col-num">5.14%</td>
+                <td class="col-num">0.23%</td>
+                <td class="col-num">1174.20</td>
+              </tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h2>Bottom 5 Weekly Contributors</h2>
+      <table>
+        <thead><tr><th>Ticker</th><th class="col-num">Start Wt</th><th class="col-num">Ret %</th><th class="col-num">CTR %</th><th class="col-num">$ Impact</th></tr></thead>
+        <tbody>
+              <tr>
+                <td>KNSL</td>
+                <td class="col-num">2.15%</td>
+                <td class="col-num">-4.59%</td>
+                <td class="col-num">-0.10%</td>
+                <td class="col-num">-508.50</td>
+              </tr>
+              <tr>
+                <td>TSLA</td>
+                <td class="col-num">2.60%</td>
+                <td class="col-num">-3.06%</td>
+                <td class="col-num">-0.08%</td>
+                <td class="col-num">-411.30</td>
+              </tr>
+              <tr>
+                <td>HD</td>
+                <td class="col-num">2.72%</td>
+                <td class="col-num">-0.57%</td>
+                <td class="col-num">-0.02%</td>
+                <td class="col-num">-79.56</td>
+              </tr>
+              <tr>
+                <td>INDA</td>
+                <td class="col-num">4.78%</td>
+                <td class="col-num">-0.42%</td>
+                <td class="col-num">-0.02%</td>
+                <td class="col-num">-103.50</td>
+              </tr>
+              <tr>
+                <td>MCHP</td>
+                <td class="col-num">0.33%</td>
+                <td class="col-num">-5.81%</td>
+                <td class="col-num">-0.02%</td>
+                <td class="col-num">-97.50</td>
+              </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section grid">
+    <div>
+      <h2>Risk & Performance</h2>
+      <table>
+        <tbody>
+          <tr><td>Volatility σ (60D, annualized)</td><td class="col-num">15.06%</td></tr>
+          <tr><td>Beta vs SPY (60D)</td><td class="col-num">1.289</td></tr>
+          <tr><td>Alpha (60D, annualized)</td><td class="col-num">9.42%</td></tr>
+          <tr><td>R² (60D)</td><td class="col-num">0.837</td></tr>
+          <tr><td>Tracking Error (252D, ann.)</td><td class="col-num">9.74%</td></tr>
+          <tr><td>Information Ratio (252D)</td><td class="col-num">0.57</td></tr>
+          <tr><td>Max Drawdown (252D)</td><td class="col-num">-25.73%</td></tr>
+          <tr><td>Samples (60D / 252D)</td><td class="col-num">109 / 357</td></tr>
+          <tr><td>Sharpe (60D)</td><td class="col-num">Data not available</td></tr>
+          <tr><td>Sharpe (252D)</td><td class="col-num"></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h2>Concentration</h2>
+      <table>
+        <tbody>
+          <tr><td>Largest weight</td><td class="col-num">NVDA — 14.19%</td></tr>
+          <tr><td>Top 5 weight</td><td class="col-num">43.62%</td></tr>
+          <tr><td>Top 10 weight</td><td class="col-num">66.72%</td></tr>
+          <tr><td>HHI</td><td class="col-num">0.0597</td></tr>
+          <tr><td>Effective N</td><td class="col-num">16.76</td></tr>
+          <tr><td>Positions &gt; 7%</td><td class="col-num">NVDA, GOOG, MU</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section grid">
+    <div>
+      <h2>Risk Contributions (60D)</h2>
+      <table>
+        <thead><tr><th>Ticker</th><th class="col-num">Weight</th><th class="col-num">MCR</th><th class="col-num">PRC %</th></tr></thead>
+        <tbody>
+            <tr><td colspan="4">Data not available</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h2>Breadth & Technicals</h2>
+      <table>
+        <tbody>
+          <tr><td>% above 50D SMA</td><td class="col-num">70%</td></tr>
+          <tr><td>% above 200D SMA</td><td class="col-num">82%</td></tr>
+          <tr><td>Golden / Death cross count (50D vs 200D)</td><td class="col-num">27 / 6</td></tr>
+          <tr><td>20D Breakouts / Breakdowns</td><td class="col-num">9 / 0</td></tr>
+          <tr><td>Recent MACD crossovers (≤2): Bullish / Bearish</td><td class="col-num">10 / 1</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Forward Outlook (next 2 weeks)</h2>
+    <table>
+      <thead><tr><th>Ticker</th><th class="col-num">Earnings Date</th><th class="col-num">Source</th></tr></thead>
+      <tbody>
+          <tr><td colspan="3">Data not available</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Per-Stock Details</h2>
+      <div class="holding">
+        <div class="title">
+          AAPL — Shares: 60.00 — Weight: 2.98%
+            <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">
+              MACD Bullish crossover (≤2)
+            </span>
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+255.59          &nbsp; &nbsp; <b>Total Cost:</b>
+15335.40        </div>
+
+        <div class="kv"><b>Current Price:</b>
+262.82          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+0.22%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+15769.20        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+433.80 (2.83%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              64.19
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-23
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:08Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          ADBE — Shares: 15.00 — Weight: 1.00%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+445.80          &nbsp; &nbsp; <b>Total Cost:</b>
+6687.00        </div>
+
+        <div class="kv"><b>Current Price:</b>
+353.52          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+2.95%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+5302.80        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+-1384.20 (-20.70%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              54.57
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-21
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:09Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          AMD — Shares: 95.00 — Weight: 4.54%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+125.19          &nbsp; &nbsp; <b>Total Cost:</b>
+11893.05        </div>
+
+        <div class="kv"><b>Current Price:</b>
+252.92          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+5.14%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+24027.40        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+12134.35 (102.03%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="rsi-overbought">
+              73.14
+            </span>
+              <span class="pill-red">Overbought ≥70</span>
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-09-23
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:09Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          AMZN — Shares: 145.00 — Weight: 6.15%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+223.75          &nbsp; &nbsp; <b>Total Cost:</b>
+32443.75        </div>
+
+        <div class="kv"><b>Current Price:</b>
+224.21          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+3.57%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+32510.45        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+66.70 (0.21%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              53.67
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-22
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:10Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          APP — Shares: 15.00 — Weight: 1.76%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+335.17          &nbsp; &nbsp; <b>Total Cost:</b>
+5027.55        </div>
+
+        <div class="kv"><b>Current Price:</b>
+620.00          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+9.55%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+9300.00        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+4272.45 (84.98%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              54.94
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bearish;
+          last crossover: 2025-10-03
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:11Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          ARKW — Shares: 1.00 — Weight: 0.03%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+111.68          &nbsp; &nbsp; <b>Total Cost:</b>
+111.68        </div>
+
+        <div class="kv"><b>Current Price:</b>
+175.97          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+1.11%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+175.97        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+64.29 (57.57%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              55.50
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bearish;
+          last crossover: 2025-10-10
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:12Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          CCL — Shares: 300.00 — Weight: 1.67%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+25.08          &nbsp; &nbsp; <b>Total Cost:</b>
+7524.00        </div>
+
+        <div class="kv"><b>Current Price:</b>
+29.40          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+1.87%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+8820.00        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+1296.00 (17.22%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              50.18
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-20
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:12Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          CRWD — Shares: 20.00 — Weight: 1.99%
+            <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">
+              MACD Bullish crossover (≤2)
+            </span>
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+354.99          &nbsp; &nbsp; <b>Total Cost:</b>
+7099.80        </div>
+
+        <div class="kv"><b>Current Price:</b>
+527.32          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+4.71%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+10546.40        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+3446.60 (48.55%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              65.60
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-24
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:13Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          DELL — Shares: 176.00 — Weight: 5.28%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+117.33          &nbsp; &nbsp; <b>Total Cost:</b>
+20650.08        </div>
+
+        <div class="kv"><b>Current Price:</b>
+158.64          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+7.66%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+27920.64        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+7270.56 (35.21%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              63.51
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bearish;
+          last crossover: 2025-10-17
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:14Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          DIS — Shares: 25.00 — Weight: 0.53%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+111.55          &nbsp; &nbsp; <b>Total Cost:</b>
+2788.75        </div>
+
+        <div class="kv"><b>Current Price:</b>
+111.68          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+-0.25%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+2792.00        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+3.25 (0.12%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              45.73
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-20
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:14Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          GOOG — Shares: 170.00 — Weight: 8.37%
+            <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">
+              MACD Bullish crossover (≤2)
+            </span>
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+194.04          &nbsp; &nbsp; <b>Total Cost:</b>
+32986.80        </div>
+
+        <div class="kv"><b>Current Price:</b>
+260.51          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+1.36%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+44286.70        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+11299.90 (34.26%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              67.26
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-24
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:15Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          HD — Shares: 36.00 — Weight: 2.63%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+392.86          &nbsp; &nbsp; <b>Total Cost:</b>
+14142.96        </div>
+
+        <div class="kv"><b>Current Price:</b>
+386.68          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+-0.57%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+13920.48        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+-222.48 (-1.57%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              42.22
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-20
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:16Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          INDA — Shares: 450.00 — Weight: 4.64%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+53.10          &nbsp; &nbsp; <b>Total Cost:</b>
+23895.00        </div>
+
+        <div class="kv"><b>Current Price:</b>
+54.51          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+-0.42%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+24529.50        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+634.50 (2.66%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              60.67
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-09
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:17Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          ISRG — Shares: 24.00 — Weight: 2.48%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+534.88          &nbsp; &nbsp; <b>Total Cost:</b>
+12837.12        </div>
+
+        <div class="kv"><b>Current Price:</b>
+546.51          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+19.20%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+13116.24        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+279.12 (2.17%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="rsi-overbought">
+              78.59
+            </span>
+              <span class="pill-red">Overbought ≥70</span>
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-09-23
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:18Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          KNSL — Shares: 25.00 — Weight: 2.00%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+470.68          &nbsp; &nbsp; <b>Total Cost:</b>
+11767.00        </div>
+
+        <div class="kv"><b>Current Price:</b>
+422.38          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+-4.59%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+10559.50        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+-1207.50 (-10.26%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              38.35
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bearish;
+          last crossover: 2025-10-17
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:18Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          MA — Shares: 20.00 — Weight: 2.17%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+532.20          &nbsp; &nbsp; <b>Total Cost:</b>
+10644.00        </div>
+
+        <div class="kv"><b>Current Price:</b>
+573.67          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+1.29%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+11473.40        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+829.40 (7.79%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              52.24
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-21
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:19Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          MCHP — Shares: 25.00 — Weight: 0.30%
+            <span class="pill-red" title="MACD Bearish crossover in last 2 sessions">
+              MACD Bearish crossover (≤2)
+            </span>
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+58.34          &nbsp; &nbsp; <b>Total Cost:</b>
+1458.50        </div>
+
+        <div class="kv"><b>Current Price:</b>
+63.17          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+-5.81%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+1579.25        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+120.75 (8.28%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              44.03
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bearish;
+          last crossover: 2025-10-24
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:20Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          META — Shares: 20.00 — Weight: 2.79%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+599.81          &nbsp; &nbsp; <b>Total Cost:</b>
+11996.20        </div>
+
+        <div class="kv"><b>Current Price:</b>
+738.36          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+0.85%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+14767.20        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+2771.00 (23.10%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              53.49
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-20
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:20Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          MFA — Shares: 214.00 — Weight: 0.37%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+10.43          &nbsp; &nbsp; <b>Total Cost:</b>
+2232.02        </div>
+
+        <div class="kv"><b>Current Price:</b>
+9.12          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+-0.65%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+1951.68        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+-280.34 (-12.56%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              46.27
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-20
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:21Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          MSFT — Shares: 66.00 — Weight: 6.54%
+            <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">
+              MACD Bullish crossover (≤2)
+            </span>
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+430.53          &nbsp; &nbsp; <b>Total Cost:</b>
+28414.98        </div>
+
+        <div class="kv"><b>Current Price:</b>
+523.61          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+1.32%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+34558.26        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+6143.28 (21.62%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              59.79
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-23
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:22Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          MU — Shares: 202.00 — Weight: 8.37%
+            <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">
+              MACD Bullish crossover (≤2)
+            </span>
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+88.63          &nbsp; &nbsp; <b>Total Cost:</b>
+17903.26        </div>
+
+        <div class="kv"><b>Current Price:</b>
+219.02          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+5.92%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+44242.04        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+26338.78 (147.12%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="rsi-overbought">
+              72.18
+            </span>
+              <span class="pill-red">Overbought ≥70</span>
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-24
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:23Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          NKE — Shares: 100.00 — Weight: 1.31%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+76.42          &nbsp; &nbsp; <b>Total Cost:</b>
+7642.00        </div>
+
+        <div class="kv"><b>Current Price:</b>
+69.11          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+2.20%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+6911.00        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+-731.00 (-9.57%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              47.47
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-21
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:23Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          NOW — Shares: 20.00 — Weight: 3.52%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+945.00          &nbsp; &nbsp; <b>Total Cost:</b>
+18900.00        </div>
+
+        <div class="kv"><b>Current Price:</b>
+930.17          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+1.38%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+18603.40        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+-296.60 (-1.57%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              53.02
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-21
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:24Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          NVDA — Shares: 403.00 — Weight: 14.19%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+137.01          &nbsp; &nbsp; <b>Total Cost:</b>
+55215.03        </div>
+
+        <div class="kv"><b>Current Price:</b>
+186.26          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+1.98%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+75062.78        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+19847.75 (35.95%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              55.84
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bearish;
+          last crossover: 2025-10-14
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:25Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          PANW — Shares: 50.00 — Weight: 2.05%
+            <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">
+              MACD Bullish crossover (≤2)
+            </span>
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+186.18          &nbsp; &nbsp; <b>Total Cost:</b>
+9309.00        </div>
+
+        <div class="kv"><b>Current Price:</b>
+217.11          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+2.50%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+10855.50        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+1546.50 (16.61%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              62.71
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-24
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:26Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          PYPL — Shares: 50.00 — Weight: 0.66%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+86.86          &nbsp; &nbsp; <b>Total Cost:</b>
+4343.00        </div>
+
+        <div class="kv"><b>Current Price:</b>
+69.77          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+0.82%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+3488.50        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+-854.50 (-19.68%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              51.39
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bearish;
+          last crossover: 2025-10-15
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:26Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          SCHA — Shares: 140.00 — Weight: 0.75%
+            <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">
+              MACD Bullish crossover (≤2)
+            </span>
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+26.04          &nbsp; &nbsp; <b>Total Cost:</b>
+3645.60        </div>
+
+        <div class="kv"><b>Current Price:</b>
+28.50          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+0.74%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+3990.00        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+344.40 (9.45%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              57.82
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-24
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:27Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          SNOW — Shares: 15.00 — Weight: 0.73%
+            <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">
+              MACD Bullish crossover (≤2)
+            </span>
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+158.65          &nbsp; &nbsp; <b>Total Cost:</b>
+2379.75        </div>
+
+        <div class="kv"><b>Current Price:</b>
+257.94          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+4.99%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+3869.10        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+1489.35 (62.58%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              65.26
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-23
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:28Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          TSLA — Shares: 30.00 — Weight: 2.46%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+431.66          &nbsp; &nbsp; <b>Total Cost:</b>
+12949.80        </div>
+
+        <div class="kv"><b>Current Price:</b>
+433.72          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+-3.06%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+13011.60        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+61.80 (0.48%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              52.63
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bearish;
+          last crossover: 2025-10-03
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:29Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          V — Shares: 78.00 — Weight: 5.12%
+            <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">
+              MACD Bullish crossover (≤2)
+            </span>
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+318.66          &nbsp; &nbsp; <b>Total Cost:</b>
+24855.48        </div>
+
+        <div class="kv"><b>Current Price:</b>
+347.38          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+0.86%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+27095.64        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+2240.16 (9.01%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              53.20
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-23
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:30Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          VUG — Shares: 4.00 — Weight: 0.37%
+            <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">
+              MACD Bullish crossover (≤2)
+            </span>
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+419.46          &nbsp; &nbsp; <b>Total Cost:</b>
+1677.84        </div>
+
+        <div class="kv"><b>Current Price:</b>
+489.62          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+1.02%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+1958.48        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+280.64 (16.73%)        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              61.20
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-24
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:30Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          COF — Shares: 25.00 — Weight: 1.06%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+Data not available          &nbsp; &nbsp; <b>Total Cost:</b>
+Data not available        </div>
+
+        <div class="kv"><b>Current Price:</b>
+225.01          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+4.72%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+5625.25        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+Data not available        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              59.37
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-10-21
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:31Z</div>
+      </div>
+      <div class="holding">
+        <div class="title">
+          CMG — Shares: 150.00 — Weight: 1.17%
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+Data not available          &nbsp; &nbsp; <b>Total Cost:</b>
+Data not available        </div>
+
+        <div class="kv"><b>Current Price:</b>
+41.19          (2025-10-24)
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+-1.06%        </div>
+
+        <div class="kv"><b>Market Value:</b>
+6178.50        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+Data not available        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+            <span class="">
+              49.86
+            </span>
+              (Neutral)
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> Bullish;
+          last crossover: 2025-09-17
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:32Z</div>
+      </div>
+  </div>
+</body>
+</html>
