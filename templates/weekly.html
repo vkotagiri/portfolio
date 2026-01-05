@@ -13,8 +13,8 @@
   .holding { padding: 12px 0; border-bottom: 1px dashed #e2e8f0; }
   .title { font-weight: 700; font-size: 1.05rem; }
   .pill-red { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#cc1f1a; }
-  .pill-green { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#15803d; }
   .pill-blue { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#1d4ed8; }
+  .pill-green { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#15803d; }
   .kv { margin: 2px 0; }
   .kv b { color:#0f172a; }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
@@ -24,8 +24,11 @@
   .col-num { text-align: right; font-variant-numeric: tabular-nums; }
   .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+
   .rsi-overbought { color:#b91c1c; font-weight:600; }
   .rsi-oversold { color:#1d4ed8; font-weight:600; }
+
+  .ai-box { border:1px solid #e5e7eb; background:#f9fafb; padding:12px; border-radius:10px; }
 </style>
 </head>
 <body>
@@ -99,12 +102,11 @@
           <tr><td>Beta vs SPY (60D)</td><td class="col-num">{{ risk.beta60 }}</td></tr>
           <tr><td>Alpha (60D, annualized)</td><td class="col-num">{{ risk.alpha60_annual }}</td></tr>
           <tr><td>R² (60D)</td><td class="col-num">{{ risk.r2_60 }}</td></tr>
+          <tr><td>Sharpe (60D)</td><td class="col-num">{{ risk.sharpe60 }}</td></tr>
           <tr><td>Tracking Error (252D, ann.)</td><td class="col-num">{{ risk.te_252 }}</td></tr>
           <tr><td>Information Ratio (252D)</td><td class="col-num">{{ risk.ir_252 }}</td></tr>
           <tr><td>Max Drawdown (252D)</td><td class="col-num">{{ risk.mdd_252 }}</td></tr>
           <tr><td>Samples (60D / 252D)</td><td class="col-num">{{ risk.samples_60 }} / {{ risk.samples_252 }}</td></tr>
-          <tr><td>Sharpe (60D)</td><td class="col-num">{{ risk.sharpe60 }}</td></tr>
-          <tr><td>Sharpe (252D)</td><td class="col-num">{{ risk.sharpe252 }}</td></tr>
         </tbody>
       </table>
     </div>
@@ -159,35 +161,17 @@
   </div>
 
   <div class="section">
-    <h2>Forward Outlook (next 2 weeks)</h2>
-    <table>
-      <thead><tr><th>Ticker</th><th class="col-num">Earnings Date</th><th class="col-num">Source</th></tr></thead>
-      <tbody>
-        {% if outlook and outlook|length > 0 %}
-          {% for r in outlook %}
-            <tr>
-              <td>{{ r.ticker }}</td>
-              <td class="col-num">{{ r.earnings_date }}</td>
-              <td class="col-num">{{ r.source }}</td>
-            </tr>
-          {% endfor %}
-        {% else %}
-          <tr><td colspan="3">Data not available</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="section">
     <h2>Per-Stock Details</h2>
     {% for h in holdings %}
       <div class="holding">
         <div class="title">
           {{ h.ticker }} — Shares: {{ "%.2f"|format(h.shares) }} — Weight: {{ h.weight_str }}
           {% if h.macd_crossover_recent %}
-            <span class="{% if h.macd_crossover_type == 'bullish' %}pill-green{% else %}pill-red{% endif %}" title="MACD {{ h.macd_crossover_type|capitalize }} crossover in last 2 sessions">
-              MACD {{ h.macd_crossover_type|capitalize }} crossover (≤2)
-            </span>
+            {% if h.macd_crossover_type == 'bullish' %}
+              <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">MACD Bullish crossover (≤2)</span>
+            {% elif h.macd_crossover_type == 'bearish' %}
+              <span class="pill-red" title="MACD Bearish crossover in last 2 sessions">MACD Bearish crossover (≤2)</span>
+            {% endif %}
           {% endif %}
         </div>
 
@@ -237,6 +221,35 @@
         <div class="kv mono"><b>Data:</b> source={{ h.source }}; asof={{ h.asof_ts }}</div>
       </div>
     {% endfor %}
+  </div>
+
+  <div class="section">
+    <h2>Upcoming Earnings (next 14 days)</h2>
+    {% if summary.upcoming_earnings and summary.upcoming_earnings|length > 0 %}
+      <table>
+        <thead><tr><th>Ticker</th><th class="col-num">Date</th><th class="col-num">When</th></tr></thead>
+        <tbody>
+          {% for e in summary.upcoming_earnings %}
+            <tr>
+              <td>{{ e.ticker }}</td>
+              <td class="col-num">{{ e.date }}</td>
+              <td class="col-num">{{ e.when }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="muted">No portfolio earnings in the next 14 days.</div>
+    {% endif %}
+  </div>
+
+  <div class="section">
+    <h2>AI Summary</h2>
+    {% if llm_summary %}
+      <div class="ai-box">{{ llm_summary | replace('\n','<br/>') | safe }}</div>
+    {% else %}
+      <div class="muted">AI summary not available.</div>
+    {% endif %}
   </div>
 </body>
 </html>

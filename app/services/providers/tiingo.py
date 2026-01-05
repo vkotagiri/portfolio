@@ -70,6 +70,7 @@ class TiingoProvider:
                 last_exc = e
                 time.sleep(backoff)
                 total_sleep += backoff
+                print(f"[tiingo] network error for {symbol}: {e}")
                 backoff = min(backoff * 2, self.limiter.max_sleep_secs)
                 if total_sleep >= max_total_sleep:
                     raise RateLimitProviderError(f"Tiingo network retry budget exceeded: {e}")

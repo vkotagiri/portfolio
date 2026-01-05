@@ -3,29 +3,27 @@ from __future__ import annotations
 
 from pathlib import Path
 from datetime import date, datetime, timedelta
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
+import os
+import math
+import time
 
 import numpy as np
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+# ---------- OpenAI key from env (no external earnings calls) ----------
+try:
+    from openai import OpenAI  # pip install openai>=1.30
+except Exception:
+    OpenAI = None
+
+OPENAI_KEY = os.environ.get("OPENAI_API_KEY")
+
 from ..db import get_session
 from ..repositories.holdings import all_holdings
 from .technicals import rsi14, macd_12_26_9
 from .risk_free import latest_1w_tbill
-
-# --- Optional news + earnings (soft imports so report still works if missing) ---
-try:
-    from .news import get_top_news_last_7d  # throttled provider(s) behind the scenes
-except Exception:
-    def get_top_news_last_7d(tickers: List[str]) -> Dict[str, List[dict]]:
-        return {}
-
-try:
-    from .earnings import upcoming_earnings_next_14d  # throttled provider(s)
-except Exception:
-    def upcoming_earnings_next_14d(tickers: List[str], asof: date) -> List[Dict[str, object]]:
-        return []
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 TEMPLATES = ROOT_DIR / "templates"
@@ -47,7 +45,7 @@ def _env() -> Environment:
 # --------------------- DB helpers ---------------------
 def _series_for(sess, ticker: str, end: date, lookback_days: int = 260) -> pd.Series:
     """Adj-close series for ticker up to `end` (inclusive)."""
-    start = end - timedelta(days=lookback_days * 2)  # buffer for non-sessions
+    start = end - timedelta(days=lookback_days * 2)
     q = """
         select date, adj_close
         from prices
@@ -127,8 +125,7 @@ def _latest_price_row(sess, ticker: str, end: date) -> Dict[str, Any] | None:
         "asof_ts": r.get("asof_ts") if "asof_ts" in df.columns else None,
     }
 
-def _get_week_window(sess, end: date, s: pd.Series) -> pd.Series:
-    """Last 5 trading bars for that series."""
+def _get_week_window(_sess, _end: date, s: pd.Series) -> pd.Series:
     return s.tail(5)
 
 # --------------------- Portfolio math helpers ---------------------
@@ -142,12 +139,6 @@ def _weights_on_day(shares_map: Dict[str, float], price_map: Dict[str, float]) -
 def _build_portfolio_value_series(
     sess, shares: Dict[str, float], tickers: List[str], end: date, lookback_days: int
 ) -> pd.Series:
-    """
-    Build daily portfolio market value series:
-    - Outer-join across tickers to avoid losing dates due to one missing series.
-    - Forward-fill up to 2 trading days to bridge minor gaps.
-    - Drop days with very poor coverage (<60% of tickers present).
-    """
     frames = []
     for t in tickers:
         s = _series_for(sess, t, end, lookback_days)
@@ -172,34 +163,25 @@ def _build_portfolio_value_series(
     pv.name = "portfolio_value"
     return pv
 
-def _beta_alpha_ols(y: pd.Series, x: pd.Series) -> Tuple[float, float, float] | None:
-    """
-    Return (beta, alpha_daily, r2) for y ~ alpha + beta * x
-    Tries statsmodels OLS, falls back to NumPy closed-form.
-    """
+def _beta_alpha_ols(y: pd.Series, x: pd.Series) -> Optional[Tuple[float, float, float]]:
     try:
         y = pd.Series(y).astype(float)
         x = pd.Series(x).astype(float)
         df = pd.concat([y, x], axis=1, join="inner").dropna()
         if len(df) < 30:
             return None
-
         try:
             import statsmodels.api as sm
             X = sm.add_constant(df.iloc[:, 1].values)
             Y = df.iloc[:, 0].values
             model = sm.OLS(Y, X).fit()
-            beta = float(model.params[1])
-            alpha = float(model.params[0])  # daily
-            r2 = float(model.rsquared)
+            beta = float(model.params[1]); alpha = float(model.params[0]); r2 = float(model.rsquared)
             if not np.isfinite(beta) or not np.isfinite(alpha) or not np.isfinite(r2):
                 raise ValueError("non-finite regression outputs")
             return beta, alpha, r2
         except Exception:
-            X = df.iloc[:, 1].values
-            Y = df.iloc[:, 0].values
-            Xc = X - X.mean()
-            Yc = Y - Y.mean()
+            X = df.iloc[:, 1].values; Y = df.iloc[:, 0].values
+            Xc = X - X.mean(); Yc = Y - Y.mean()
             varX = float(np.var(Xc))
             if varX == 0.0 or not np.isfinite(varX):
                 return None
@@ -232,15 +214,115 @@ def _adv20_and_dtl(sess, t: str, end: date, shares: float, price_series: pd.Seri
     if adv20_dollars <= 0:
         return None, None
     position_value = float(shares) * float(price_series.dropna().iloc[-1])
-    sell_rate = 0.2 * adv20_dollars  # 20% of ADV in $
+    sell_rate = 0.2 * adv20_dollars
     dtl = (position_value / sell_rate) if sell_rate > 0 else None
     return adv20_dollars, (None if dtl is None else float(dtl))
 
-# --------------------- Main report ---------------------
+# --------------------- LLM Summary helpers ---------------------
+def _fmt_contrib(lst: List[Dict[str, str]]) -> str:
+    parts = []
+    for t in lst or []:
+        tk = t.get("ticker", "?")
+        rt = t.get("ret", "NA")
+        ctr = t.get("ctr")
+        parts.append(f"{tk} {rt} ({ctr})" if ctr is not None else f"{tk} {rt}")
+    return ", ".join(parts)
+
+def _professional_llm_summary(payload: Dict[str, Any], api_key: Optional[str]) -> str:
+    """
+    Produce a professional, concise brief (<= ~180 words).
+    The model MUST NOT browse; it should use internal knowledge only.
+    If it cannot confidently provide earnings within the given window,
+    it must write 'Data not available' for that section (no guessing).
+    Payload keys include:
+      - as_of, window_days
+      - port_ret, spy_ret
+      - top[List[{ticker,ret,ctr?}]], bot[List[{ticker,ret,ctr?}]]
+      - risk (dict), breadth (dict), concentration (dict)
+      - portfolio_tickers[List[str]], top_weights[List[{ticker,weight_pct}]]
+    """
+    if not api_key or OpenAI is None:
+        return ""
+
+    client = OpenAI(api_key=api_key)
+
+    sys = (
+        "You are a sell-side style portfolio strategist. "
+        "Write a crisp board-ready brief with bold section labels: **Performance**, **Attribution**, "
+        "**Risk**, **Technicals/Breadth**, **Concentration**, **Upcoming Earnings**. "
+        "Use only the information provided in the user message and your internal knowledge; do NOT browse. "
+        "For 'Upcoming Earnings', list only tickers from the provided portfolio that have earnings "
+        "scheduled in the next N days (N is provided). If you are not certain for a ticker, write "
+        "'Data not available' for the section rather than guessing. Keep ≤ 180 words."
+    )
+
+    S = payload
+    lines = []
+    lines.append(f"As-Of: {S.get('as_of','Data not available')} (window: next {S.get('window_days','?')} days)")
+    # Context: full portfolio universe + top weights
+    ptix = S.get("portfolio_tickers") or []
+    if ptix:
+        lines.append("Portfolio tickers: " + ", ".join(sorted(ptix)))
+    tw = S.get("top_weights") or []
+    if tw:
+        lines.append("Top weights: " + ", ".join([f"{x['ticker']} {x['weight_pct']}%" for x in tw]))
+
+    lines.append(f"Performance: Portfolio {S.get('port_ret','NA')} vs SPY {S.get('spy_ret','NA')}")
+    if S.get("top"):
+        lines.append("Top contributors: " + _fmt_contrib(S["top"]))
+    if S.get("bot"):
+        lines.append("Bottom contributors: " + _fmt_contrib(S["bot"]))
+
+    r = S.get("risk") or {}
+    if r:
+        lines.append("Risk: " + "; ".join([
+            f"Vol {r.get('sigma60','Data not available')}",
+            f"Beta {r.get('beta60','Data not available')}",
+            f"Sharpe {r.get('sharpe60','Data not available')}",
+            f"TE {r.get('te_252','Data not available')}",
+            f"IR {r.get('ir_252','Data not available')}",
+        ]))
+
+    b = S.get("breadth") or {}
+    if b:
+        lines.append("Technicals/Breadth: " + "; ".join([
+            f"{b.get('pct_above_50d','Data not available')} >50D",
+            f"{b.get('pct_above_200d','Data not available')} >200D",
+            f"MACD recent bull/bear {b.get('macd_recent_bull','Data not available')}/{b.get('macd_recent_bear','Data not available')}",
+        ]))
+
+    c = S.get("concentration") or {}
+    if c:
+        lines.append("Concentration: " + "; ".join([
+            f"Largest {c.get('largest_ticker','Data not available')} {c.get('largest_weight','Data not available')}",
+            f"Top5 {c.get('top5','Data not available')}",
+            f"HHI {c.get('hhi','Data not available')}",
+            f"Eff N {c.get('effective_n','Data not available')}",
+        ]))
+
+    lines.append("Upcoming Earnings: Use internal knowledge only; for any uncertainty write 'Data not available'.")
+
+    prompt_user = "\n".join(lines)
+
+    try:
+        resp = client.chat.completions.create(
+            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            messages=[
+                {"role": "system", "content": sys},
+                {"role": "user", "content": prompt_user},
+            ],
+            temperature=0.2,
+        )
+        return (resp.choices[0].message.content or "").strip()
+    except Exception:
+        return ""
+
+# --------------------- WEEKLY REPORT ---------------------
 def build_weekly_report(
     week_end: date,
     out_html_path: str | None = None,
-    fetch_outlook: bool = False,  # <— NEW: gate news/earnings work
+    fetch_outlook: bool = False,   # kept for compatibility; not used for earnings
+    ai_summary: bool = False,
 ) -> Dict[str, Any]:
     env = _env()
     tpl = env.get_template("weekly.html")
@@ -254,7 +336,7 @@ def build_weekly_report(
         tickers = [h.ticker for h in holds]
         shares_map = {h.ticker: float(h.shares) for h in holds}
 
-        # ---- latest price snapshot (for weights & MV) ----
+        # latest snapshot for weights
         latest_map: Dict[str, Dict[str, Any]] = {}
         total_mv = 0.0
         for h in holds:
@@ -262,18 +344,17 @@ def build_weekly_report(
             if lp:
                 latest_map[h.ticker] = lp
                 total_mv += float(h.shares) * float(lp["adj_close"])
-        weights_now = {}
+        weights_now: Dict[str, float] = {}
         if total_mv > 0:
-            weights_now = {
-                t: (float(holds[i].shares) * float(latest_map[t]["adj_close"])) / total_mv
-                for i, t in enumerate(tickers) if t in latest_map
-            }
+            for h in holds:
+                t = h.ticker
+                if t in latest_map:
+                    weights_now[t] = (float(h.shares) * float(latest_map[t]["adj_close"])) / total_mv
 
-        # ---- per holding rows + technicals + weekly stats ----
+        # per holding rows + technicals + weekly stats
         rows: List[Dict[str, Any]] = []
         breadth_up = breadth_dn = 0
         macd_recent_bull = macd_recent_bear = 0
-
         week_first_prices: Dict[str, float] = {}
         week_last_prices: Dict[str, float] = {}
 
@@ -299,9 +380,7 @@ def build_weekly_report(
                 week_last_prices[t] = float(wk.iloc[-1])
 
             # P&L
-            total_cost = None
-            upl = None
-            upl_pct = None
+            total_cost = None; upl = None; upl_pct = None
             if h.avg_cost is not None and price is not None:
                 total_cost = float(h.avg_cost) * float(h.shares)
                 mv = float(price) * float(h.shares)
@@ -309,10 +388,9 @@ def build_weekly_report(
                 if total_cost != 0:
                     upl_pct = (mv / total_cost - 1.0) * 100.0
 
-            # technicals (RSI + MACD)
+            # technicals
             rsi_val = rsi14(s) if not s.empty else None
-            rsi_label = "Data not available"
-            rsi_class = "na"
+            rsi_label = "Data not available"; rsi_class = "na"
             if rsi_val is not None:
                 if rsi_val >= 70:
                     rsi_label = "Overbought"; rsi_class = "overbought"
@@ -333,12 +411,6 @@ def build_weekly_report(
                 elif macd["recent_crossover_type"] == "bearish":
                     macd_recent_bear += 1
 
-            macd_badge = None
-            macd_badge_color = None
-            if macd.get("recent_crossover"):
-                macd_badge = f"MACD {macd.get('recent_crossover_type','').capitalize()} crossover (≤2)"
-                macd_badge_color = "red" if macd.get("recent_crossover_type") == "bearish" else "green"
-
             rows.append({
                 "ticker": t,
                 "shares": float(h.shares),
@@ -354,19 +426,16 @@ def build_weekly_report(
                 "unreal_pct": None if upl_pct is None else round(upl_pct, 2),
                 "source": src or "Data not available",
                 "asof_ts": asof or "Data not available",
-                # Technicals
                 "rsi14": None if rsi_val is None else round(rsi_val, 2),
                 "rsi_label": rsi_label,
                 "rsi_class": rsi_class,
                 "macd_direction": macd["direction"],
                 "macd_last_cross": macd["last_crossover"],
                 "macd_crossover_recent": macd["recent_crossover"],
-                "macd_crossover_type": macd["recent_crossover_type"],
-                "macd_badge": macd_badge,
-                "macd_badge_color": macd_badge_color,
+                "macd_crossover_type": macd["recent_crossover_type"],  # template can color green/red
             })
 
-        # ---- SPY weekly return ----
+        # SPY weekly
         spy = _spy_series(sess, week_end, 260)
         spy_week = None
         if not spy.empty:
@@ -374,7 +443,7 @@ def build_weekly_report(
             if len(wk) >= 2:
                 spy_week = (wk.iloc[-1] / wk.iloc[0] - 1.0) * 100.0
 
-        # ---- Portfolio weekly return (weighted by week-start MV) ----
+        # Portfolio weekly + attribution
         port_week = None
         ctr_rows: List[Dict[str, Any]] = []
         if week_first_prices:
@@ -393,11 +462,11 @@ def build_weekly_report(
                         "dollar": round(dollar, 2),
                     })
             if ctr_rows:
-                port_week = sum(c["ctr_pct"] for c in ctr_rows)  # % units
+                port_week = sum(c["ctr_pct"] for c in ctr_rows)
 
-        # ---- Multi-horizon returns (portfolio vs SPY) ----
+        # Multi-horizon returns
         def _horizon_ret(n_bars: int) -> Tuple[str, str]:
-            pv = _build_portfolio_value_series(sess, shares_map, tickers, week_end, lookback_days=max(280, n_bars+10))
+            pv = _build_portfolio_value_series(sess, shares_map, tickers, week_end, max(280, n_bars+10))
             if pv.empty or len(pv) < (n_bars + 1):
                 return "Data not available", "Data not available"
             pv_w = pv.tail(n_bars + 1)
@@ -414,13 +483,11 @@ def build_weekly_report(
         ret_6m_p, ret_6m_s = _horizon_ret(126)
         ret_12m_p, ret_12m_s = _horizon_ret(252)
 
-        # ---- Risk-free ----
+        # Risk-free
         rf_dict = latest_1w_tbill(week_end)
-        rf_val = rf_dict.get("value")  # percent (weekly) or None
-        rf_date = rf_dict.get("date")
-        rf_src = rf_dict.get("source")
+        rf_val = rf_dict.get("value"); rf_date = rf_dict.get("date"); rf_src = rf_dict.get("source")
 
-        # ---- Risk metrics (daily) ----
+        # Risk metrics
         pv_60 = _build_portfolio_value_series(sess, shares_map, tickers, week_end, 80)
         pv_252 = _build_portfolio_value_series(sess, shares_map, tickers, week_end, 400)
         risk: Dict[str, Any] = {
@@ -428,7 +495,7 @@ def build_weekly_report(
             "beta60": "Data not available",
             "alpha60_annual": "Data not available",
             "r2_60": "Data not available",
-            "sharpe60": "Data not available",   # <— NEW
+            "sharpe60": "Data not available",
             "te_252": "Data not available",
             "ir_252": "Data not available",
             "mdd_252": "Data not available",
@@ -436,16 +503,13 @@ def build_weekly_report(
             "samples_252": 0,
         }
 
-        # 60D block
         if not pv_60.empty and len(pv_60) >= 30 and not spy.empty:
             pr60 = pv_60.pct_change().dropna()
             sr60 = spy.reindex(pr60.index).pct_change().dropna()
             idx = pr60.index.intersection(sr60.index)
-            pr60 = pr60.loc[idx]
-            sr60 = sr60.loc[idx]
+            pr60 = pr60.loc[idx]; sr60 = sr60.loc[idx]
             if len(pr60) >= 30:
-                sigma60 = float(pr60.std() * np.sqrt(252) * 100.0)
-                risk["sigma60"] = f"{sigma60:.2f}%"
+                sigma60 = float(pr60.std() * np.sqrt(252) * 100.0); risk["sigma60"] = f"{sigma60:.2f}%"
                 ba = _beta_alpha_ols(pr60, sr60)
                 if ba:
                     beta, alpha_daily, r2 = ba
@@ -453,36 +517,30 @@ def build_weekly_report(
                     risk["alpha60_annual"] = f"{(alpha_daily * 252.0) * 100.0:.2f}%"
                     risk["r2_60"] = f"{r2:.3f}"
                 risk["samples_60"] = int(len(pr60))
-
-                # --- NEW: Sharpe (annualized) using 1-week T-bill -> daily RF
                 if rf_val is not None and np.isfinite(pr60.std()) and pr60.std() > 0:
-                    rf_week = float(rf_val) / 100.0              # weekly decimal
-                    rf_daily = rf_week / 5.0                     # approx daily RF
-                    ex = pr60 - rf_daily                         # daily excess returns
+                    rf_week = float(rf_val) / 100.0
+                    rf_daily = rf_week / 5.0
+                    ex = pr60 - rf_daily
                     sharpe = (ex.mean() / pr60.std()) * np.sqrt(252.0)
                     if np.isfinite(sharpe):
                         risk["sharpe60"] = f"{sharpe:.2f}"
-                # if RF not available, leave "Data not available"
 
-        # 252D block
         if not pv_252.empty and len(pv_252) >= 100 and not spy.empty:
             pr252 = pv_252.pct_change().dropna()
             sr252 = spy.reindex(pr252.index).pct_change().dropna()
             idx = pr252.index.intersection(sr252.index)
-            pr252 = pr252.loc[idx]
-            sr252 = sr252.loc[idx]
+            pr252 = pr252.loc[idx]; sr252 = sr252.loc[idx]
             if len(pr252) >= 100:
                 active = pr252 - sr252
-                te = float(active.std() * np.sqrt(252) * 100.0)
-                risk["te_252"] = f"{te:.2f}%"
-                er = float((pr252.mean() - sr252.mean()) * 252.0 * 100.0)  # annualized %
+                te = float(active.std() * np.sqrt(252) * 100.0); risk["te_252"] = f"{te:.2f}%"
+                er = float((pr252.mean() - sr252.mean()) * 252.0 * 100.0)
                 risk["ir_252"] = ("Data not available" if te == 0 else f"{er / te:.2f}")
                 mdd = _max_drawdown(pv_252.tail(252))
                 if mdd is not None:
                     risk["mdd_252"] = f"{mdd * 100.0:.2f}%"
                 risk["samples_252"] = int(len(pr252))
 
-        # ---- Concentration: weights, HHI, Effective N ----
+        # Concentration snapshot
         w_sorted = sorted([(t, weights_now.get(t, 0.0)) for t in tickers if t in weights_now],
                           key=lambda x: x[1], reverse=True)
         top1 = sum([w for _, w in w_sorted[:1]])
@@ -501,37 +559,7 @@ def build_weekly_report(
             "over_7pct": [t for t, w in w_sorted if w > 0.07],
         }
 
-        # ---- Risk contributions (60D covariance) ----
-        risk_contrib: List[Dict[str, Any]] = []
-        if w_sorted:
-            frames = []
-            cols = []
-            for t, _w in w_sorted:
-                s = _series_for(sess, t, week_end, 80)
-                if not s.empty:
-                    frames.append(s.rename(t))
-                    cols.append(t)
-            if len(frames) >= 2:
-                df = pd.concat(frames, axis=1, join="inner").dropna()
-                rets = df.pct_change().dropna()
-                if not rets.empty and len(rets) >= 30:
-                    w_vec = np.array([weights_now.get(t, 0.0) for t in rets.columns], dtype=float)
-                    Sigma = np.cov(rets.values, rowvar=False)
-                    port_var = float(w_vec @ Sigma @ w_vec)
-                    if port_var > 0:
-                        sigma_p = np.sqrt(port_var)
-                        mcr = (Sigma @ w_vec) / sigma_p
-                        prc = (w_vec * (Sigma @ w_vec)) / port_var
-                        order = np.argsort(-prc)
-                        for idx in order[:10]:
-                            risk_contrib.append({
-                                "ticker": rets.columns[idx],
-                                "weight_pct": f"{weights_now.get(rets.columns[idx],0.0)*100:.2f}%",
-                                "mcr": f"{mcr[idx]:.4f}",
-                                "prc_pct": f"{prc[idx]*100:.2f}%",
-                            })
-
-        # ---- Breadth / technical counts (SMA & breakout) ----
+        # Breadth / technical counts
         above50 = above200 = 0
         golden = death = 0
         breakout = breakdown = 0
@@ -571,59 +599,38 @@ def build_weekly_report(
             "macd_recent_bear": macd_recent_bear,
         }
 
-        # ---- Liquidity (ADV20, DTL) ----
-        adv_values = []
-        low_adv_count = 0  # ADV < $5M
-        worst_dtl = ("Data not available", "Data not available")
-        worst_dtl_val = -1.0
-        for h in holds:
-            t = h.ticker
-            s = _series_for(sess, t, week_end, 60)
-            adv20, dtl = _adv20_and_dtl(sess, t, week_end, float(h.shares), s)
-            if adv20 is None:
-                continue
-            adv_values.append(adv20)
-            if adv20 < 5_000_000:
-                low_adv_count += 1
-            if dtl is not None and dtl > worst_dtl_val:
-                worst_dtl = (t, f"{dtl:.1f}")
-                worst_dtl_val = dtl
-        if adv_values and len(holds) > 0:
-            liq = {
-                "weighted_adv20": f"${(sum(adv_values)/len(adv_values)):.0f}",
-                "pct_low_adv": f"{(low_adv_count/len(holds))*100:.0f}%",
-                "worst_dtl": f"{worst_dtl[0]}: {worst_dtl[1]} days" if worst_dtl_val >= 0 else "Data not available",
-            }
-        else:
-            liq = {
-                "weighted_adv20": "Data not available",
-                "pct_low_adv": "Data not available",
-                "worst_dtl": "Data not available",
-            }
+        # Risk contributions (kept for template if you show it)
+        risk_contrib: List[Dict[str, Any]] = []
+        if w_sorted:
+            frames = []
+            for t, _ in w_sorted:
+                s = _series_for(sess, t, week_end, 80)
+                if not s.empty:
+                    frames.append(s.rename(t))
+            if len(frames) >= 2:
+                df = pd.concat(frames, axis=1, join="inner").dropna()
+                rets = df.pct_change().dropna()
+                if not rets.empty and len(rets) >= 30:
+                    w_vec = np.array([weights_now.get(t, 0.0) for t in rets.columns], dtype=float)
+                    Sigma = np.cov(rets.values, rowvar=False)
+                    port_var = float(w_vec @ Sigma @ w_vec)
+                    if port_var > 0:
+                        sigma_p = np.sqrt(port_var)
+                        mcr = (Sigma @ w_vec) / sigma_p
+                        prc = (w_vec * (Sigma @ w_vec)) / port_var
+                        order = np.argsort(-prc)
+                        for idx in order[:10]:
+                            risk_contrib.append({
+                                "ticker": rets.columns[idx],
+                                "weight_pct": f"{weights_now.get(rets.columns[idx],0.0)*100:.2f}%",
+                                "mcr": f"{mcr[idx]:.4f}",
+                                "prc_pct": f"{prc[idx]*100:.2f}%",
+                            })
 
-        # ---- (Optional) News & Upcoming Earnings ----
-        if fetch_outlook:
-            try:
-                news_by_t = get_top_news_last_7d(tickers)
-            except Exception:
-                news_by_t = {}
-            for row in rows:
-                row["news"] = news_by_t.get(row["ticker"], [])
+        # No external earnings calls — the LLM will handle that section.
+        upcoming_earn = []  # left empty for template; LLM will include in llm_summary
 
-            try:
-                upcoming_earn = upcoming_earnings_next_14d(tickers, week_end)
-            except Exception:
-                upcoming_earn = []
-        else:
-            for row in rows:
-                row["news"] = []
-            upcoming_earn = []
-
-    # --------- Render ----------
-    out_dir = REPORTS_DIR / week_end.isoformat()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_html = out_html_path or str(out_dir / "weekly.html")
-
+    # Summary for template
     summary = {
         "week_end": week_end.isoformat(),
         "generated_ts": timestamp,
@@ -635,12 +642,48 @@ def build_weekly_report(
         "ret_3m_p": ret_3m_p, "ret_3m_s": ret_3m_s,
         "ret_6m_p": ret_6m_p, "ret_6m_s": ret_6m_s,
         "ret_12m_p": ret_12m_p, "ret_12m_s": ret_12m_s,
-        "upcoming_earnings": upcoming_earn,  # shown by template only if present
+        "upcoming_earnings": upcoming_earn,  # intentionally empty — AI handles it
     }
 
+    # Top/bottom lists for LLM + template
     ctr_sorted = sorted(ctr_rows, key=lambda r: r["ctr_pct"])
     top5 = list(reversed(ctr_sorted[-5:])) if ctr_sorted else []
     bot5 = ctr_sorted[:5] if ctr_sorted else []
+
+    # LLM payload includes FULL TICKER LIST & TOP WEIGHTS
+    llm_summary = ""
+    if ai_summary:
+        top_weights = [{"ticker": t, "weight_pct": round(w * 100.0, 2)} for t, w in w_sorted[:5]]
+        payload = {
+            "as_of": week_end.isoformat(),
+            "window_days": 14,  # ask the model for earnings in the next 14 days
+            "port_ret": summary["portfolio_weekly_return"],
+            "spy_ret": summary["spy_weekly_return"],
+            "top": [{"ticker": r["ticker"], "ret": f"{r['ret_pct']}%", "ctr": f"{r['ctr_pct']}%"} for r in top5],
+            "bot": [{"ticker": r["ticker"], "ret": f"{r['ret_pct']}%", "ctr": f"{r['ctr_pct']}%"} for r in bot5],
+            "risk": risk,
+            "breadth": {
+                "pct_above_50d": breadth_block.get("pct_above_50d","Data not available"),
+                "pct_above_200d": breadth_block.get("pct_above_200d","Data not available"),
+                "macd_recent_bull": breadth_block.get("macd_recent_bull","Data not available"),
+                "macd_recent_bear": breadth_block.get("macd_recent_bear","Data not available"),
+            },
+            "concentration": {
+                "largest_ticker": concentration["largest_ticker"],
+                "largest_weight": concentration["largest_weight"],
+                "top5": concentration["top5"],
+                "hhi": concentration["hhi"],
+                "effective_n": concentration["effective_n"],
+            },
+            "portfolio_tickers": tickers,           # <<<<<< FULL TICKER LIST PASSED
+            "top_weights": top_weights,             # top weights for more context
+        }
+        llm_summary = _professional_llm_summary(payload, OPENAI_KEY)
+
+    # Render weekly
+    out_dir = REPORTS_DIR / week_end.isoformat()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_html = out_html_path or str(out_dir / "weekly.html")
 
     html = tpl.render(
         title="Weekly Deep Dive Report",
@@ -649,10 +692,123 @@ def build_weekly_report(
         risk=risk,
         concentration=concentration,
         breadth_block=breadth_block,
-        liquidity=liq,
+        liquidity={},  # optional; keep empty if you don't surface it
         top_contrib=top5,
         bottom_contrib=bot5,
+        risk_contrib=risk_contrib,
+        llm_summary=llm_summary,
     )
+    Path(out_html).write_text(html, encoding="utf-8")
+    return {"status": "ok", "path": out_html}
 
+# --------------------- DAILY REPORT ---------------------
+def build_daily_report(
+    as_of: date,
+    out_html_path: str | None = None,
+    ai_summary: bool = False,
+) -> Dict[str, Any]:
+    env = _env()
+    tpl = env.get_template("daily.html")
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    as_of = as_of if isinstance(as_of, date) else date.fromisoformat(str(as_of))
+    timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+
+    with get_session() as sess:
+        holds = list(all_holdings(sess))
+        tickers = [h.ticker for h in holds]
+        shares_map = {h.ticker: float(h.shares) for h in holds}
+
+        # latest for weights
+        latest_map: Dict[str, Dict[str, Any]] = {}
+        total_mv = 0.0
+        for h in holds:
+            lp = _latest_price_row(sess, h.ticker, as_of)
+            if lp:
+                latest_map[h.ticker] = lp
+                total_mv += float(h.shares) * float(lp["adj_close"])
+        weights_now: Dict[str, float] = {}
+        if total_mv > 0:
+            for h in holds:
+                t = h.ticker
+                if t in latest_map:
+                    weights_now[t] = (float(h.shares) * float(latest_map[t]["adj_close"])) / total_mv
+
+        # daily returns
+        daily_returns: Dict[str, float] = {}
+        for h in holds:
+            t = h.ticker
+            s = _series_for(sess, t, as_of, 30)
+            if s.empty or len(s) < 2:
+                continue
+            r = (s.iloc[-1] / s.iloc[-2]) - 1.0
+            daily_returns[t] = float(r)
+
+        # SPY daily
+        spy = _spy_series(sess, as_of, 10)
+        spy_daily = None
+        if not spy.empty and len(spy) >= 2:
+            spy_daily = (spy.iloc[-1] / spy.iloc[-2] - 1.0) * 100.0
+
+        # portfolio daily return
+        port_daily = None
+        if daily_returns and weights_now:
+            port_daily = sum(weights_now.get(t, 0.0) * daily_returns.get(t, 0.0) for t in daily_returns.keys()) * 100.0
+
+        # movers
+        movers = [{"ticker": t, "ret_pct": r * 100.0, "weight_pct": weights_now.get(t, 0.0) * 100.0}
+                  for t, r in daily_returns.items()]
+        movers_sorted = sorted(movers, key=lambda x: x["ret_pct"])
+        top_up = list(reversed(movers_sorted[-5:])) if movers_sorted else []
+        top_dn = movers_sorted[:5] if movers_sorted else []
+
+        # risk-free snapshot
+        rf = latest_1w_tbill(as_of)
+        rf_val = rf.get("value"); rf_date = rf.get("date"); rf_src = rf.get("source")
+        rf_str = "Data not available" if rf_val is None else f"{rf_val:.2f}% (as of {rf_date}, source: {rf_src})"
+
+    # headline summary
+    headline = {
+        "as_of": as_of.isoformat(),
+        "generated_ts": timestamp,
+        "portfolio_daily_return": "Data not available" if port_daily is None else f"{port_daily:.2f}%",
+        "spy_daily_return": "Data not available" if spy_daily is None else f"{spy_daily:.2f}%",
+        "risk_free": rf_str,
+    }
+
+    # LLM summary (daily). No external earnings; the model will try from internal knowledge only.
+    llm_summary = ""
+    if ai_summary:
+        weights_sorted = sorted([(t, weights_now.get(t, 0.0)) for t in weights_now], key=lambda x: x[1], reverse=True)
+        top_weights = [{"ticker": t, "weight_pct": round(w*100.0, 2)} for t, w in weights_sorted[:5]]
+
+        payload = {
+            "as_of": as_of.isoformat(),
+            "window_days": 7,  # next 7 days for daily brief
+            "port_ret": headline["portfolio_daily_return"],
+            "spy_ret": headline["spy_daily_return"],
+            "top": [{"ticker": r["ticker"], "ret": f"{r['ret_pct']:.2f}%"} for r in top_up],
+            "bot": [{"ticker": r["ticker"], "ret": f"{r['ret_pct']:.2f}%"} for r in top_dn],
+            "risk": {},  # daily brief keeps risk light
+            "breadth": {},
+            "concentration": {},
+            "portfolio_tickers": tickers,       # <<<<<< FULL TICKER LIST PASSED
+            "top_weights": top_weights,
+        }
+        llm_summary = _professional_llm_summary(payload, OPENAI_KEY)
+
+    # Render
+    out_dir = REPORTS_DIR / as_of.isoformat()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_html = out_html_path or str(out_dir / "daily.html")
+
+    html = tpl.render(
+        title="Daily Portfolio Brief",
+        headline=headline,
+        top_up=top_up,
+        top_dn=top_dn,
+        earnings_next7=[],         # left empty; LLM summary will mention earnings if known
+        llm_summary=llm_summary,
+    )
     Path(out_html).write_text(html, encoding="utf-8")
     return {"status": "ok", "path": out_html}

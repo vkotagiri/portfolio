@@ -2,6 +2,9 @@
 import os
 from datetime import date
 from typing import List, Sequence
+import logging
+
+from sqlalchemy.sql import text
 
 from ..db import get_session
 from ..repositories.holdings import all_holdings
@@ -13,6 +16,10 @@ from .providers.mock_provider import MockProvider
 from .providers.yf import YFProvider
 import time
 TIINGO_THROTTLE = float(os.getenv("TIINGO_THROTTLE_SEC", "0.4"))
+
+# Initialize logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)  # Set logging level to INFO
 
 
 # Optional Tiingo (primary, rate-limited). Try/except lets you run without it.
@@ -115,35 +122,78 @@ def backfill_history(start: date, end: date):
     with get_session() as sess:
         tickers = [h.ticker for h in all_holdings(sess)]
         if not tickers:
+            logger.info("No holdings found. Skipping backfill.")
             return {"status": "no-holdings", "start": s, "end": e}
 
         total = 0
 
         # Holdings
         for t in tickers:
-            rows = _chain_history(t, s, e)
-            if rows:
-                upsert_prices(sess, rows)
-                total += len(rows)
+            # Check if data already exists for the ticker and date range
+            existing_data = sess.execute(
+                text(
+                    """
+                    SELECT COUNT(*) FROM prices
+                    WHERE ticker = :ticker AND date BETWEEN :start AND :end
+                    """
+                ),
+                {"ticker": t, "start": s, "end": e}
+            ).scalar()
+
+            if existing_data > 0:
+                logger.info(f"Skipping {t}: Data already exists for {s} to {e}.")
+                continue  # Skip if data already exists
+
+            try:
+                rows = _chain_history(t, s, e)
+                if rows:
+                    upsert_prices(sess, rows)
+                    total += len(rows)
+                    logger.info(f"Fetched and inserted {len(rows)} rows for {t}.")
+                else:
+                    logger.warning(f"No data fetched for {t} from {s} to {e}.")
+            except Exception as ex:
+                logger.error(f"Error fetching data for {t}: {ex}")
+
             time.sleep(TIINGO_THROTTLE)
 
         # Benchmark (SPY)
-        spy_rows = _chain_history("SPY", s, e)
-        if spy_rows:
-            upsert_benchmark(
-                sess,
-                [
-                    {
-                        "symbol": "SPY",
-                        "date": r["date"],
-                        "adj_close": r["adj_close"],
-                        "source": r["source"],
-                        "asof_ts": r["asof_ts"],
-                    }
-                    for r in spy_rows
-                ],
-            )
-            total += len(spy_rows)
+        spy_existing_data = sess.execute(
+            text(
+                """
+                SELECT COUNT(*) FROM prices
+                WHERE ticker = 'SPY' AND date BETWEEN :start AND :end
+                """
+            ),
+            {"start": s, "end": e}
+        ).scalar()
+
+        if spy_existing_data > 0:
+            logger.info(f"Skipping SPY: Data already exists for {s} to {e}.")
+        else:
+            try:
+                spy_rows = _chain_history("SPY", s, e)
+                if spy_rows:
+                    upsert_benchmark(
+                        sess,
+                        [
+                            {
+                                "symbol": "SPY",
+                                "date": r["date"],
+                                "adj_close": r["adj_close"],
+                                "source": r["source"],
+                                "asof_ts": r["asof_ts"],
+                            }
+                            for r in spy_rows
+                        ],
+                    )
+                    total += len(spy_rows)
+                    logger.info(f"Fetched and inserted {len(spy_rows)} rows for SPY.")
+                else:
+                    logger.warning(f"No data fetched for SPY from {s} to {e}.")
+            except Exception as ex:
+                logger.error(f"Error fetching data for SPY: {ex}")
 
         sess.commit()
+        logger.info(f"Backfill completed: {total} rows inserted from {s} to {e}.")
         return {"status": "ok", "start": s, "end": e, "rows": total}

@@ -5,16 +5,16 @@
 <title>Weekly Deep Dive Report</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.45; margin: 24px; color: #0f172a; }
+  body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; line-height: 1.45; margin: 24px; color: #0f172a; }
   h1 { margin: 0 0 4px 0; font-size: 1.6rem; }
   h2 { margin: 16px 0 8px 0; font-size: 1.2rem; }
   .muted { color: #475569; font-size: 0.95rem; }
   .section { margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
   .holding { padding: 12px 0; border-bottom: 1px dashed #e2e8f0; }
   .title { font-weight: 700; font-size: 1.05rem; }
-  .pill-red { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#cc1f1a; }
+  .pill-red   { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#cc1f1a; }
+  .pill-blue  { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#1d4ed8; }
   .pill-green { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#15803d; }
-  .pill-blue { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#1d4ed8; }
   .kv { margin: 2px 0; }
   .kv b { color:#0f172a; }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
@@ -26,11 +26,13 @@
   @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
   .rsi-overbought { color:#b91c1c; font-weight:600; }
   .rsi-oversold { color:#1d4ed8; font-weight:600; }
+  /* AI summary box */
+  .ai-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; }
 </style>
 </head>
 <body>
   <h1>Weekly Deep Dive Report</h1>
-  <div class="muted">Week ending 2025-10-24 | Generated: 2025-10-26T19:11:16.100</div>
+  <div class="muted">Week ending 2025-10-24 | Generated: 2025-10-29T01:30:41.386</div>
 
   <div class="section">
     <div class="kv"><b>Portfolio weekly return:</b> 2.62%</div>
@@ -143,12 +145,11 @@
           <tr><td>Beta vs SPY (60D)</td><td class="col-num">1.289</td></tr>
           <tr><td>Alpha (60D, annualized)</td><td class="col-num">9.42%</td></tr>
           <tr><td>R² (60D)</td><td class="col-num">0.837</td></tr>
+          <tr><td>Sharpe (60D)</td><td class="col-num">Data not available</td></tr>
           <tr><td>Tracking Error (252D, ann.)</td><td class="col-num">9.74%</td></tr>
           <tr><td>Information Ratio (252D)</td><td class="col-num">0.57</td></tr>
           <tr><td>Max Drawdown (252D)</td><td class="col-num">-25.73%</td></tr>
           <tr><td>Samples (60D / 252D)</td><td class="col-num">109 / 357</td></tr>
-          <tr><td>Sharpe (60D)</td><td class="col-num">Data not available</td></tr>
-          <tr><td>Sharpe (252D)</td><td class="col-num"></td></tr>
         </tbody>
       </table>
     </div>
@@ -173,7 +174,66 @@
       <table>
         <thead><tr><th>Ticker</th><th class="col-num">Weight</th><th class="col-num">MCR</th><th class="col-num">PRC %</th></tr></thead>
         <tbody>
-            <tr><td colspan="4">Data not available</td></tr>
+              <tr>
+                <td>NVDA</td>
+                <td class="col-num">14.19%</td>
+                <td class="col-num">0.0129</td>
+                <td class="col-num">18.42%</td>
+              </tr>
+              <tr>
+                <td>MU</td>
+                <td class="col-num">8.37%</td>
+                <td class="col-num">0.0187</td>
+                <td class="col-num">15.69%</td>
+              </tr>
+              <tr>
+                <td>AMD</td>
+                <td class="col-num">4.54%</td>
+                <td class="col-num">0.0213</td>
+                <td class="col-num">9.71%</td>
+              </tr>
+              <tr>
+                <td>DELL</td>
+                <td class="col-num">5.28%</td>
+                <td class="col-num">0.0164</td>
+                <td class="col-num">8.68%</td>
+              </tr>
+              <tr>
+                <td>GOOG</td>
+                <td class="col-num">8.37%</td>
+                <td class="col-num">0.0077</td>
+                <td class="col-num">6.48%</td>
+              </tr>
+              <tr>
+                <td>AMZN</td>
+                <td class="col-num">6.15%</td>
+                <td class="col-num">0.0101</td>
+                <td class="col-num">6.27%</td>
+              </tr>
+              <tr>
+                <td>TSLA</td>
+                <td class="col-num">2.46%</td>
+                <td class="col-num">0.0150</td>
+                <td class="col-num">3.72%</td>
+              </tr>
+              <tr>
+                <td>MSFT</td>
+                <td class="col-num">6.54%</td>
+                <td class="col-num">0.0052</td>
+                <td class="col-num">3.40%</td>
+              </tr>
+              <tr>
+                <td>V</td>
+                <td class="col-num">5.12%</td>
+                <td class="col-num">0.0052</td>
+                <td class="col-num">2.67%</td>
+              </tr>
+              <tr>
+                <td>NOW</td>
+                <td class="col-num">3.52%</td>
+                <td class="col-num">0.0074</td>
+                <td class="col-num">2.61%</td>
+              </tr>
         </tbody>
       </table>
     </div>
@@ -191,15 +251,6 @@
     </div>
   </div>
 
-  <div class="section">
-    <h2>Forward Outlook (next 2 weeks)</h2>
-    <table>
-      <thead><tr><th>Ticker</th><th class="col-num">Earnings Date</th><th class="col-num">Source</th></tr></thead>
-      <tbody>
-          <tr><td colspan="3">Data not available</td></tr>
-      </tbody>
-    </table>
-  </div>
 
   <div class="section">
     <h2>Per-Stock Details</h2>
@@ -1325,6 +1376,57 @@ Data not available        </div>
 
         <div class="kv mono"><b>Data:</b> source=tiingo; asof=2025-10-26T03:11:32Z</div>
       </div>
+  </div>
+
+  <div class="section">
+    <h2>AI Summary</h2>
+    <div class="ai-box">
+      <section class="section"><h2>AI Summary</h2><div class="ai-summary"><div class="analyst-card">
+    <h3>Performance</h3>
+    <ul>
+        <li>Weekly Return: 2.62%</li>
+        <li>SPY Weekly Return: 0.89%</li>
+        <li>1-Month Return: 8.43%</li>
+        <li>3-Month Return: 12.51%</li>
+        <li>6-Month Return: 38.83%</li>
+        <li>12-Month Return: 27.58%</li>
+    </ul>
+    
+    <h3>Attribution</h3>
+    <ul>
+        <li>Top Performer: ISRG (+19.2%)</li>
+        <li>Bottom Performer: KNSL (-4.59%)</li>
+    </ul>
+    
+    <h3>Risk</h3>
+    <ul>
+        <li>60-Day Volatility: 15.06%</li>
+        <li>Beta (60 days): 1.289</li>
+        <li>Annual Alpha: 9.42%</li>
+        <li>Max Drawdown (252 days): -25.73%</li>
+    </ul>
+    
+    <h3>Technicals & Breadth</h3>
+    <ul>
+        <li>70% above 50-day MA</li>
+        <li>82% above 200-day MA</li>
+        <li>Golden Crosses: 27</li>
+        <li>Breakouts (20 days): 9</li>
+    </ul>
+    
+    <h3>Concentration</h3>
+    <ul>
+        <li>Top 1 Holding: 14.19% (NVDA)</li>
+        <li>Top 5 Holdings: 43.62%</li>
+        <li>Top 10 Holdings: 66.72%</li>
+    </ul>
+    
+    <h3>Upcoming Earnings</h3>
+    <ul>
+        <li>No items in 14d; if empty, say so.</li>
+    </ul>
+</div></div></section>
+    </div>
   </div>
 </body>
 </html>

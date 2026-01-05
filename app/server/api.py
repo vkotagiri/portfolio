@@ -3,6 +3,8 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from datetime import date
 from .cli import generate_report_once
+from dotenv import load_dotenv
+load_dotenv()   # loads .env into os.environ
 
 app = FastAPI(title="Agentic Portfolio")
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")

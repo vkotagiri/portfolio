@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{{ title }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body { font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; line-height:1.45; margin:24px; color:#0f172a; }
+  h1 { margin:0 0 4px 0; font-size:1.6rem; }
+  h2 { margin:16px 0 8px 0; font-size:1.2rem; }
+  .muted { color:#475569; font-size:0.95rem; }
+  .section { margin-top:20px; padding-top:12px; border-top:1px solid #e2e8f0; }
+  table { width:100%; border-collapse:collapse; margin:8px 0; }
+  th,td { text-align:left; padding:6px 8px; border-bottom:1px solid #e2e8f0; }
+  th { background:#f8fafc; }
+  .col-num { text-align:right; font-variant-numeric: tabular-nums; }
+  .ai-box { border:1px solid #e5e7eb; background:#f9fafb; padding:12px; border-radius:10px; }
+</style>
+</head>
+<body>
+  <h1>Daily Portfolio Brief</h1>
+  <div class="muted">As of {{ headline.as_of }} | Generated: {{ headline.generated_ts }}</div>
+
+  <div class="section">
+    <div><b>Portfolio daily return:</b> {{ headline.portfolio_daily_return }}</div>
+    <div><b>SPY daily return:</b> {{ headline.spy_daily_return }}</div>
+    <div><b>Risk-free (1-week T-bill):</b> {{ headline.risk_free }}</div>
+  </div>
+
+  <div class="section">
+    <h2>Top Movers (Up)</h2>
+    <table>
+      <thead><tr><th>Ticker</th><th class="col-num">Ret %</th><th class="col-num">Weight %</th></tr></thead>
+      <tbody>
+        {% if top_up and top_up|length > 0 %}
+          {% for r in top_up %}
+            <tr>
+              <td>{{ r.ticker }}</td>
+              <td class="col-num">{{ "%.2f"|format(r.ret_pct) }}%</td>
+              <td class="col-num">{{ "%.2f"|format(r.weight_pct) }}%</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="3">Data not available</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Top Movers (Down)</h2>
+    <table>
+      <thead><tr><th>Ticker</th><th class="col-num">Ret %</th><th class="col-num">Weight %</th></tr></thead>
+      <tbody>
+        {% if top_dn and top_dn|length > 0 %}
+          {% for r in top_dn %}
+            <tr>
+              <td>{{ r.ticker }}</td>
+              <td class="col-num">{{ "%.2f"|format(r.ret_pct) }}%</td>
+              <td class="col-num">{{ "%.2f"|format(r.weight_pct) }}%</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="3">Data not available</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Upcoming Earnings (next 7 days)</h2>
+    {% if earnings_next7 and earnings_next7|length > 0 %}
+      <table>
+        <thead><tr><th>Ticker</th><th class="col-num">Date</th><th class="col-num">When</th></tr></thead>
+        <tbody>
+          {% for e in earnings_next7 %}
+            <tr>
+              <td>{{ e.ticker }}</td>
+              <td class="col-num">{{ e.date }}</td>
+              <td class="col-num">{{ e.when }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="muted">No portfolio earnings in the next 7 days.</div>
+    {% endif %}
+  </div>
+
+  <div class="section">
+    <h2>AI Summary</h2>
+    {% if llm_summary %}
+      <div class="ai-box">{{ llm_summary | replace('\n','<br/>') | safe }}</div>
+    {% else %}
+      <div class="muted">AI summary not available.</div>
+    {% endif %}
+  </div>
+</body>
+</html>
