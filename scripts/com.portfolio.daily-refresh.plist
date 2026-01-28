@@ -73,6 +73,8 @@
     <dict>
         <key>PATH</key>
         <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>SEND_EMAIL</key>
+        <string>true</string>
     </dict>
 </dict>
 </plist>
