@@ -1,6 +1,48 @@
-env_portfolio
+# Virtual environment
+env_portfolio/
+venv/
+.venv/
 
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+
+# Database
 portfolio.db
-reports/** */
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated reports (large, user-specific)
+reports/
+
+# Log files
+logs/
+*.log
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Pytest cache
+.pytest_cache/
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# Sensitive files - NEVER commit
+.env
+.env.*
+!.env.example

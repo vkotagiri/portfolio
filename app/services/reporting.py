@@ -18,12 +18,18 @@ try:
 except Exception:
     OpenAI = None
 
-OPENAI_KEY = os.environ.get("OPENAI_API_KEY")
+def _get_openai_key() -> Optional[str]:
+    """Get OpenAI key at runtime (after dotenv is loaded)."""
+    return os.environ.get("OPENAI_API_KEY")
 
 from ..db import get_session
 from ..repositories.holdings import all_holdings
 from .technicals import rsi14, macd_12_26_9
 from .risk_free import latest_1w_tbill
+from .outlook_yf import fetch_next_earnings
+from .news import get_market_and_holdings_news, format_news_for_llm
+from .sectors import get_sector_breakdown
+from .correlation import get_correlation_analysis, format_correlation_for_llm
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 TEMPLATES = ROOT_DIR / "templates"
@@ -228,79 +234,165 @@ def _fmt_contrib(lst: List[Dict[str, str]]) -> str:
         parts.append(f"{tk} {rt} ({ctr})" if ctr is not None else f"{tk} {rt}")
     return ", ".join(parts)
 
-def _professional_llm_summary(payload: Dict[str, Any], api_key: Optional[str]) -> str:
+def _professional_llm_summary(payload: Dict[str, Any], api_key: Optional[str], news_context: str = "") -> str:
     """
-    Produce a professional, concise brief (<= ~180 words).
-    The model MUST NOT browse; it should use internal knowledge only.
-    If it cannot confidently provide earnings within the given window,
-    it must write 'Data not available' for that section (no guessing).
-    Payload keys include:
-      - as_of, window_days
-      - port_ret, spy_ret
-      - top[List[{ticker,ret,ctr?}]], bot[List[{ticker,ret,ctr?}]]
-      - risk (dict), breadth (dict), concentration (dict)
-      - portfolio_tickers[List[str]], top_weights[List[{ticker,weight_pct}]]
+    Produce a professional, actionable investment brief.
+    Focus on insights and recommendations, not just restating data.
+    Incorporates recent market and stock-specific news for context.
     """
     if not api_key or OpenAI is None:
         return ""
 
     client = OpenAI(api_key=api_key)
 
-    sys = (
-        "You are a sell-side style portfolio strategist. "
-        "Write a crisp board-ready brief with bold section labels: **Performance**, **Attribution**, "
-        "**Risk**, **Technicals/Breadth**, **Concentration**, **Upcoming Earnings**. "
-        "Use only the information provided in the user message and your internal knowledge; do NOT browse. "
-        "For 'Upcoming Earnings', list only tickers from the provided portfolio that have earnings "
-        "scheduled in the next N days (N is provided). If you are not certain for a ticker, write "
-        "'Data not available' for the section rather than guessing. Keep ≤ 180 words."
-    )
+    sys = """You are an experienced portfolio strategist providing actionable weekly insights to a sophisticated investor.
+
+Your brief MUST include these sections with **bold headers**:
+
+**Key Takeaways** (2-3 bullet points)
+- What's the single most important thing the investor should know this week?
+- Any urgent action items based on market conditions or news?
+
+**Market Context**
+- Summarize key market themes from the news (Fed policy, geopolitics, sector rotations)
+- How does this affect the portfolio's positioning?
+
+**Position Alerts** 
+- Flag positions impacted by recent news (positive or negative catalysts)
+- Flag any positions with RSI >70 (overbought) or <30 (oversold)
+- Flag any position >10% weight as concentration risk
+- Note any position contributing >20% of portfolio risk
+
+**Diversification Analysis**
+- Interpret the diversification score (100=perfectly uncorrelated, 0=identical movements)
+- Flag correlation clusters: positions that move together and amplify risk
+- Identify hedging positions that offset portfolio risk (negative correlation)
+- Call out redundant positions (>0.85 correlation) - suggest consolidating
+- Sector concentration warnings if multiple highly-correlated holdings in same sector
+
+**Rebalancing Suggestions**
+- Based on news, correlation, and data, suggest 1-2 specific rebalancing actions
+- Consider sector exposure given current market themes
+- If highly correlated positions exist, suggest reducing redundancy
+- If portfolio is well-balanced, say so
+
+**Risk Watch**
+- Is beta appropriate for current market volatility/conditions?
+- Any macro risks from news that affect the portfolio?
+- Drawdown context - is current drawdown normal or concerning?
+- Correlation cluster risk: would a sector crash impact multiple positions?
+
+**Earnings & Catalysts**
+- List portfolio holdings with earnings in next 14 days
+- Note any other upcoming catalysts mentioned in news (product launches, FDA decisions, etc.)
+
+**Outlook**
+- 2-3 sentences on portfolio positioning for next week based on market context
+- Specific actions to consider given the news environment
+
+Rules:
+- Be specific with ticker names and numbers
+- Reference specific news items when making recommendations
+- Give concrete actions, not vague advice
+- When discussing correlation, explain the practical risk implication
+- If unsure about earnings dates, write "verify earnings calendar"
+- Keep total response under 500 words
+- Integrate news insights with portfolio data for holistic recommendations"""
 
     S = payload
     lines = []
-    lines.append(f"As-Of: {S.get('as_of','Data not available')} (window: next {S.get('window_days','?')} days)")
-    # Context: full portfolio universe + top weights
-    ptix = S.get("portfolio_tickers") or []
-    if ptix:
-        lines.append("Portfolio tickers: " + ", ".join(sorted(ptix)))
-    tw = S.get("top_weights") or []
-    if tw:
-        lines.append("Top weights: " + ", ".join([f"{x['ticker']} {x['weight_pct']}%" for x in tw]))
-
-    lines.append(f"Performance: Portfolio {S.get('port_ret','NA')} vs SPY {S.get('spy_ret','NA')}")
+    lines.append(f"Report Date: {S.get('as_of','N/A')}")
+    
+    # Performance context
+    port_ret = S.get('port_ret', 'N/A')
+    spy_ret = S.get('spy_ret', 'N/A')
+    lines.append(f"Weekly Performance: Portfolio {port_ret} vs SPY {spy_ret}")
+    
+    # Attribution
     if S.get("top"):
         lines.append("Top contributors: " + _fmt_contrib(S["top"]))
     if S.get("bot"):
         lines.append("Bottom contributors: " + _fmt_contrib(S["bot"]))
 
+    # Risk metrics for analysis
     r = S.get("risk") or {}
     if r:
-        lines.append("Risk: " + "; ".join([
-            f"Vol {r.get('sigma60','Data not available')}",
-            f"Beta {r.get('beta60','Data not available')}",
-            f"Sharpe {r.get('sharpe60','Data not available')}",
-            f"TE {r.get('te_252','Data not available')}",
-            f"IR {r.get('ir_252','Data not available')}",
+        lines.append("Risk Metrics: " + "; ".join([
+            f"Volatility {r.get('sigma60','N/A')}",
+            f"Beta {r.get('beta60','N/A')}",
+            f"Sharpe {r.get('sharpe60','N/A')}",
+            f"Max Drawdown {r.get('mdd_252','N/A')}",
+            f"Tracking Error {r.get('te_252','N/A')}",
+            f"Info Ratio {r.get('ir_252','N/A')}",
         ]))
 
+    # Breadth for market regime
     b = S.get("breadth") or {}
     if b:
-        lines.append("Technicals/Breadth: " + "; ".join([
-            f"{b.get('pct_above_50d','Data not available')} >50D",
-            f"{b.get('pct_above_200d','Data not available')} >200D",
-            f"MACD recent bull/bear {b.get('macd_recent_bull','Data not available')}/{b.get('macd_recent_bear','Data not available')}",
+        lines.append("Market Breadth: " + "; ".join([
+            f"{b.get('pct_above_50d','N/A')} above 50D SMA",
+            f"{b.get('pct_above_200d','N/A')} above 200D SMA",
+            f"Recent MACD crossovers: {b.get('macd_recent_bull','?')} bullish, {b.get('macd_recent_bear','?')} bearish",
         ]))
 
+    # Concentration concerns
     c = S.get("concentration") or {}
     if c:
         lines.append("Concentration: " + "; ".join([
-            f"Largest {c.get('largest_ticker','Data not available')} {c.get('largest_weight','Data not available')}",
-            f"Top5 {c.get('top5','Data not available')}",
-            f"HHI {c.get('hhi','Data not available')}",
-            f"Eff N {c.get('effective_n','Data not available')}",
+            f"Largest position: {c.get('largest_ticker','N/A')} at {c.get('largest_weight','N/A')}",
+            f"Top 5 = {c.get('top5','N/A')}",
+            f"HHI = {c.get('hhi','N/A')}",
+            f"Effective positions = {c.get('effective_n','N/A')}",
+        ]))
+    
+    # Correlation/Diversification data
+    corr = S.get("correlation") or {}
+    if corr:
+        div_score = corr.get("diversification_score")
+        avg_corr = corr.get("avg_correlation")
+        if div_score is not None:
+            lines.append(f"Diversification Score: {div_score}/100 (avg correlation: {avg_corr})")
+        
+        clusters = corr.get("clusters") or []
+        if clusters:
+            cluster_str = "; ".join([f"{', '.join(cl['tickers'][:4])} (corr {cl['avg_correlation']})" for cl in clusters[:3]])
+            lines.append(f"Correlation Clusters (risk): {cluster_str}")
+        
+        hedges = corr.get("hedges") or []
+        if hedges:
+            hedge_str = ", ".join([f"{h['ticker']} ({h['avg_correlation_with_portfolio']})" for h in hedges[:3]])
+            lines.append(f"Hedging Positions: {hedge_str}")
+        
+        redundant = corr.get("redundant") or []
+        if redundant:
+            red_str = "; ".join([f"{r['ticker1']}/{r['ticker2']} ({r['correlation']})" for r in redundant[:3]])
+            lines.append(f"Potentially Redundant (>0.85 corr): {red_str}")
+    
+    # Risk contribution data
+    rc = S.get("risk_contrib") or []
+    if rc:
+        lines.append("Top Risk Contributors: " + ", ".join([
+            f"{x.get('ticker','?')} ({x.get('prc_pct','?')})" for x in rc[:5]
         ]))
 
-    lines.append("Upcoming Earnings: Use internal knowledge only; for any uncertainty write 'Data not available'.")
+    # Portfolio tickers for earnings lookup
+    ptix = S.get("portfolio_tickers") or []
+    if ptix:
+        lines.append("Portfolio tickers: " + ", ".join(sorted(ptix)))
+    
+    # Top weights
+    tw = S.get("top_weights") or []
+    if tw:
+        lines.append("Largest positions: " + ", ".join([f"{x['ticker']} {x['weight_pct']}%" for x in tw]))
+
+    # P&L context
+    pnl = S.get("pnl") or {}
+    if pnl:
+        lines.append(f"Portfolio P&L: Unrealized {pnl.get('unrealized_pct','N/A')}% ({pnl.get('winners',0)} winners, {pnl.get('losers',0)} losers)")
+
+    # Add news context if available
+    if news_context:
+        lines.append(f"\n--- RECENT NEWS (last 7 days) ---\n{news_context}")
 
     prompt_user = "\n".join(lines)
 
@@ -311,7 +403,7 @@ def _professional_llm_summary(payload: Dict[str, Any], api_key: Optional[str]) -
                 {"role": "system", "content": sys},
                 {"role": "user", "content": prompt_user},
             ],
-            temperature=0.2,
+            temperature=0.3,
         )
         return (resp.choices[0].message.content or "").strip()
     except Exception:
@@ -321,8 +413,9 @@ def _professional_llm_summary(payload: Dict[str, Any], api_key: Optional[str]) -
 def build_weekly_report(
     week_end: date,
     out_html_path: str | None = None,
-    fetch_outlook: bool = False,   # kept for compatibility; not used for earnings
+    fetch_outlook: bool = False,   # controls earnings + news fetch
     ai_summary: bool = False,
+    return_payload: bool = False,  # return full payload for email notifications
 ) -> Dict[str, Any]:
     env = _env()
     tpl = env.get_template("weekly.html")
@@ -399,7 +492,7 @@ def build_weekly_report(
                 else:
                     rsi_label = "Neutral"; rsi_class = "neutral"
 
-            macd = macd_12_26_9(s, recent_sessions=2) if not s.empty else {
+            macd = macd_12_26_9(s, recent_sessions=3) if not s.empty else {
                 "direction": "Data not available",
                 "last_crossover": "Data not available",
                 "recent_crossover": False,
@@ -410,6 +503,38 @@ def build_weekly_report(
                     macd_recent_bull += 1
                 elif macd["recent_crossover_type"] == "bearish":
                     macd_recent_bear += 1
+
+            # Moving average crossovers (golden/death cross) and 20D breakout/breakdown
+            is_golden_cross = False
+            is_death_cross = False
+            is_breakout_20d = False
+            is_breakdown_20d = False
+            is_above_50d = False
+            is_above_200d = False
+
+            if not s.empty and len(s) >= 50:
+                sma50 = s.rolling(50).mean()
+                sma200 = s.rolling(200).mean() if len(s) >= 200 else None
+                current_price = s.iloc[-1]
+
+                if not np.isnan(sma50.iloc[-1]) and current_price > sma50.iloc[-1]:
+                    is_above_50d = True
+                if sma200 is not None and not np.isnan(sma200.iloc[-1]) and current_price > sma200.iloc[-1]:
+                    is_above_200d = True
+                if sma200 is not None and len(sma200.dropna()) > 0:
+                    if sma50.iloc[-1] > sma200.iloc[-1]:
+                        is_golden_cross = True
+                    elif sma50.iloc[-1] < sma200.iloc[-1]:
+                        is_death_cross = True
+
+            if not s.empty and len(s) >= 20:
+                high_20 = s.tail(20).max()
+                low_20 = s.tail(20).min()
+                current_price = s.iloc[-1]
+                if current_price >= high_20:
+                    is_breakout_20d = True
+                if current_price <= low_20:
+                    is_breakdown_20d = True
 
             rows.append({
                 "ticker": t,
@@ -433,6 +558,13 @@ def build_weekly_report(
                 "macd_last_cross": macd["last_crossover"],
                 "macd_crossover_recent": macd["recent_crossover"],
                 "macd_crossover_type": macd["recent_crossover_type"],  # template can color green/red
+                # Technical signals
+                "is_golden_cross": is_golden_cross,
+                "is_death_cross": is_death_cross,
+                "is_breakout_20d": is_breakout_20d,
+                "is_breakdown_20d": is_breakdown_20d,
+                "is_above_50d": is_above_50d,
+                "is_above_200d": is_above_200d,
             })
 
         # SPY weekly
@@ -504,8 +636,8 @@ def build_weekly_report(
         }
 
         if not pv_60.empty and len(pv_60) >= 30 and not spy.empty:
-            pr60 = pv_60.pct_change().dropna()
-            sr60 = spy.reindex(pr60.index).pct_change().dropna()
+            pr60 = pv_60.pct_change(fill_method=None).dropna()
+            sr60 = spy.reindex(pr60.index).pct_change(fill_method=None).dropna()
             idx = pr60.index.intersection(sr60.index)
             pr60 = pr60.loc[idx]; sr60 = sr60.loc[idx]
             if len(pr60) >= 30:
@@ -518,16 +650,17 @@ def build_weekly_report(
                     risk["r2_60"] = f"{r2:.3f}"
                 risk["samples_60"] = int(len(pr60))
                 if rf_val is not None and np.isfinite(pr60.std()) and pr60.std() > 0:
-                    rf_week = float(rf_val) / 100.0
-                    rf_daily = rf_week / 5.0
+                    # rf_val is already annualized percentage (e.g., 5.25 means 5.25% per year)
+                    rf_annual = float(rf_val) / 100.0  # Convert from percent to decimal
+                    rf_daily = rf_annual / 252.0  # Convert annual to daily
                     ex = pr60 - rf_daily
                     sharpe = (ex.mean() / pr60.std()) * np.sqrt(252.0)
                     if np.isfinite(sharpe):
                         risk["sharpe60"] = f"{sharpe:.2f}"
 
         if not pv_252.empty and len(pv_252) >= 100 and not spy.empty:
-            pr252 = pv_252.pct_change().dropna()
-            sr252 = spy.reindex(pr252.index).pct_change().dropna()
+            pr252 = pv_252.pct_change(fill_method=None).dropna()
+            sr252 = spy.reindex(pr252.index).pct_change(fill_method=None).dropna()
             idx = pr252.index.intersection(sr252.index)
             pr252 = pr252.loc[idx]; sr252 = sr252.loc[idx]
             if len(pr252) >= 100:
@@ -559,34 +692,28 @@ def build_weekly_report(
             "over_7pct": [t for t, w in w_sorted if w > 0.07],
         }
 
-        # Breadth / technical counts
-        above50 = above200 = 0
-        golden = death = 0
-        breakout = breakdown = 0
-        for h in holds:
-            t = h.ticker
-            s = _series_for(sess, t, week_end, 260)
-            if s.empty or len(s) < 50:
-                continue
-            sma50 = s.rolling(50).mean()
-            sma200 = s.rolling(200).mean() if len(s) >= 200 else None
-            price = s.iloc[-1]
-            if not np.isnan(sma50.iloc[-1]) and price > sma50.iloc[-1]:
-                above50 += 1
-            if sma200 is not None and not np.isnan(sma200.iloc[-1]) and price > sma200.iloc[-1]:
-                above200 += 1
-            if sma200 is not None and len(sma200.dropna()) > 0:
-                if sma50.iloc[-1] > sma200.iloc[-1]:
-                    golden += 1
-                elif sma50.iloc[-1] < sma200.iloc[-1]:
-                    death += 1
-            if len(s) >= 20:
-                hh = s.tail(20).max()
-                ll = s.tail(20).min()
-                if price >= hh:
-                    breakout += 1
-                if price <= ll:
-                    breakdown += 1
+        # Sector breakdown
+        holdings_with_weights = [{"ticker": t, "weight": w} for t, w in w_sorted]
+        sector_data = get_sector_breakdown(holdings_with_weights, sess)
+        
+        # Build sector map for correlation analysis
+        sector_map = {}
+        for s in sector_data.get("breakdown", []):
+            for t in s.get("tickers", []):
+                sector_map[t] = s.get("sector", "Unknown")
+        
+        # Correlation analysis (60-day lookback)
+        correlation_insights = get_correlation_analysis(
+            sess, tickers, weights_now, sector_map, week_end, lookback_days=60
+        )
+
+        # Breadth / technical counts (aggregated from per-holding calculations)
+        above50 = sum(1 for r in rows if r.get("is_above_50d"))
+        above200 = sum(1 for r in rows if r.get("is_above_200d"))
+        golden = sum(1 for r in rows if r.get("is_golden_cross"))
+        death = sum(1 for r in rows if r.get("is_death_cross"))
+        breakout = sum(1 for r in rows if r.get("is_breakout_20d"))
+        breakdown = sum(1 for r in rows if r.get("is_breakdown_20d"))
 
         breadth_block = {
             "pct_above_50d": f"{(above50/len(holds))*100:.0f}%" if holds else "Data not available",
@@ -597,6 +724,15 @@ def build_weekly_report(
             "breakdowns20": breakdown,
             "macd_recent_bull": macd_recent_bull,
             "macd_recent_bear": macd_recent_bear,
+            # Add tickers with these signals for quick reference
+            "golden_cross_tickers": [r["ticker"] for r in rows if r.get("is_golden_cross")],
+            "death_cross_tickers": [r["ticker"] for r in rows if r.get("is_death_cross")],
+            "breakout_tickers": [r["ticker"] for r in rows if r.get("is_breakout_20d")],
+            "breakdown_tickers": [r["ticker"] for r in rows if r.get("is_breakdown_20d")],
+            "macd_bull_tickers": [r["ticker"] for r in rows if r.get("macd_crossover") == "recent_bullish"],
+            "macd_bear_tickers": [r["ticker"] for r in rows if r.get("macd_crossover") == "recent_bearish"],
+            "overbought_tickers": [r["ticker"] for r in rows if r.get("rsi") and r["rsi"] > 70],
+            "oversold_tickers": [r["ticker"] for r in rows if r.get("rsi") and r["rsi"] < 30],
         }
 
         # Risk contributions (kept for template if you show it)
@@ -609,7 +745,7 @@ def build_weekly_report(
                     frames.append(s.rename(t))
             if len(frames) >= 2:
                 df = pd.concat(frames, axis=1, join="inner").dropna()
-                rets = df.pct_change().dropna()
+                rets = df.pct_change(fill_method=None).dropna()
                 if not rets.empty and len(rets) >= 30:
                     w_vec = np.array([weights_now.get(t, 0.0) for t in rets.columns], dtype=float)
                     Sigma = np.cov(rets.values, rowvar=False)
@@ -627,8 +763,48 @@ def build_weekly_report(
                                 "prc_pct": f"{prc[idx]*100:.2f}%",
                             })
 
-        # No external earnings calls — the LLM will handle that section.
-        upcoming_earn = []  # left empty for template; LLM will include in llm_summary
+        # Fetch upcoming earnings for the next 14 days (only if fetch_outlook=True)
+        upcoming_earn = []
+        if fetch_outlook:
+            try:
+                from datetime import datetime as dt_class
+                real_today = dt_class.now().date()
+                # Skip earnings lookup if report date is more than 30 days in the future
+                # (simulated dates won't have real earnings data)
+                if (week_end - real_today).days > 30:
+                    logger.info(f"Skipping earnings lookup for simulated future date {week_end}")
+                else:
+                    # Only fetch for top 10 holdings by weight to limit API calls
+                    top_tickers = [t for t, _ in w_sorted[:10]] if w_sorted else tickers[:10]
+                    earnings_data = fetch_next_earnings(top_tickers, rpm=60, max_calls=10)
+                    cutoff_date = week_end + timedelta(days=14)
+                    for ticker, (earn_date_str, source) in earnings_data.items():
+                        if earn_date_str and source not in ("throttle-cap", "yfinance-error", "timeout", "Data not available"):
+                            try:
+                                earn_date = date.fromisoformat(earn_date_str)
+                                if week_end <= earn_date <= cutoff_date:
+                                    upcoming_earn.append({
+                                        "ticker": ticker,
+                                        "date": earn_date_str,
+                                        "when": "TBD",  # yfinance doesn't reliably provide BMO/AMC
+                                    })
+                            except ValueError:
+                                pass
+                # Sort by date
+                upcoming_earn = sorted(upcoming_earn, key=lambda x: x["date"])
+            except Exception:
+                pass  # If earnings fetch fails, leave empty (AI summary will still mention them)
+
+    # Calculate portfolio P&L totals
+    total_market_value = sum(r["market_value"] for r in rows if r["market_value"] is not None)
+    total_cost_basis = sum(r["total_cost"] for r in rows if r["total_cost"] is not None)
+    total_unrealized_pnl = sum(r["unreal_dollar"] for r in rows if r["unreal_dollar"] is not None)
+    total_unrealized_pct = (total_unrealized_pnl / total_cost_basis * 100.0) if total_cost_basis > 0 else None
+    
+    # Count winners/losers
+    winners = sum(1 for r in rows if r["unreal_dollar"] is not None and r["unreal_dollar"] > 0)
+    losers = sum(1 for r in rows if r["unreal_dollar"] is not None and r["unreal_dollar"] < 0)
+    flat = sum(1 for r in rows if r["unreal_dollar"] is not None and r["unreal_dollar"] == 0)
 
     # Summary for template
     summary = {
@@ -642,7 +818,16 @@ def build_weekly_report(
         "ret_3m_p": ret_3m_p, "ret_3m_s": ret_3m_s,
         "ret_6m_p": ret_6m_p, "ret_6m_s": ret_6m_s,
         "ret_12m_p": ret_12m_p, "ret_12m_s": ret_12m_s,
-        "upcoming_earnings": upcoming_earn,  # intentionally empty — AI handles it
+        "upcoming_earnings": upcoming_earn,
+        # Portfolio P&L summary
+        "total_market_value": round(total_market_value, 2),
+        "total_cost_basis": round(total_cost_basis, 2),
+        "total_unrealized_pnl": round(total_unrealized_pnl, 2),
+        "total_unrealized_pct": round(total_unrealized_pct, 2) if total_unrealized_pct is not None else None,
+        "position_count": len(rows),
+        "winners": winners,
+        "losers": losers,
+        "flat": flat,
     }
 
     # Top/bottom lists for LLM + template
@@ -650,35 +835,74 @@ def build_weekly_report(
     top5 = list(reversed(ctr_sorted[-5:])) if ctr_sorted else []
     bot5 = ctr_sorted[:5] if ctr_sorted else []
 
-    # LLM payload includes FULL TICKER LIST & TOP WEIGHTS
+    # Build payload for LLM and/or email notification
+    top_weights = [{"ticker": t, "weight_pct": round(w * 100.0, 2)} for t, w in w_sorted[:10]]
+    payload = {
+        "as_of": week_end.isoformat(),
+        "window_days": 14,  # ask the model for earnings in the next 14 days
+        "port_ret": summary["portfolio_weekly_return"],
+        "spy_ret": summary["spy_weekly_return"],
+        "top": [{"ticker": r["ticker"], "ret": f"{r['ret_pct']}%", "contrib": f"{r['ctr_pct']}%"} for r in top5],
+        "bot": [{"ticker": r["ticker"], "ret": f"{r['ret_pct']}%", "contrib": f"{r['ctr_pct']}%"} for r in bot5],
+        "risk": risk,
+        "breadth": {
+            "pct_above_50d": breadth_block.get("pct_above_50d","Data not available"),
+            "pct_above_200d": breadth_block.get("pct_above_200d","Data not available"),
+            "macd_recent_bull": breadth_block.get("macd_recent_bull","Data not available"),
+            "macd_recent_bear": breadth_block.get("macd_recent_bear","Data not available"),
+            "golden_cross_tickers": breadth_block.get("golden_cross_tickers", []),
+            "death_cross_tickers": breadth_block.get("death_cross_tickers", []),
+            "macd_bull_tickers": breadth_block.get("macd_bull_tickers", []),
+            "macd_bear_tickers": breadth_block.get("macd_bear_tickers", []),
+            "overbought_tickers": breadth_block.get("overbought_tickers", []),
+            "oversold_tickers": breadth_block.get("oversold_tickers", []),
+        },
+        "concentration": {
+            "largest_ticker": concentration["largest_ticker"],
+            "largest_weight": concentration["largest_weight"],
+            "top5": concentration["top5"],
+            "hhi": concentration["hhi"],
+            "effective_n": concentration["effective_n"],
+        },
+        "portfolio_tickers": tickers,
+        "top_weights": top_weights,
+        # Additional actionable data
+        "risk_contrib": risk_contrib[:5] if risk_contrib else [],
+        "pnl": {
+            "unrealized_pct": summary["total_unrealized_pct"],
+            "winners": winners,
+            "losers": losers,
+        },
+        "correlation": {
+            "diversification_score": correlation_insights.get("diversification_score"),
+            "avg_correlation": correlation_insights.get("avg_correlation"),
+            "clusters": correlation_insights.get("concentration_clusters", []),
+            "hedges": correlation_insights.get("hedging_positions", []),
+            "redundant": correlation_insights.get("redundant_positions", []),
+        },
+        "sector_breakdown": sector_data.get("breakdown", []),
+    }
+    
+    # LLM summary generation
     llm_summary = ""
     if ai_summary:
-        top_weights = [{"ticker": t, "weight_pct": round(w * 100.0, 2)} for t, w in w_sorted[:5]]
-        payload = {
-            "as_of": week_end.isoformat(),
-            "window_days": 14,  # ask the model for earnings in the next 14 days
-            "port_ret": summary["portfolio_weekly_return"],
-            "spy_ret": summary["spy_weekly_return"],
-            "top": [{"ticker": r["ticker"], "ret": f"{r['ret_pct']}%", "ctr": f"{r['ctr_pct']}%"} for r in top5],
-            "bot": [{"ticker": r["ticker"], "ret": f"{r['ret_pct']}%", "ctr": f"{r['ctr_pct']}%"} for r in bot5],
-            "risk": risk,
-            "breadth": {
-                "pct_above_50d": breadth_block.get("pct_above_50d","Data not available"),
-                "pct_above_200d": breadth_block.get("pct_above_200d","Data not available"),
-                "macd_recent_bull": breadth_block.get("macd_recent_bull","Data not available"),
-                "macd_recent_bear": breadth_block.get("macd_recent_bear","Data not available"),
-            },
-            "concentration": {
-                "largest_ticker": concentration["largest_ticker"],
-                "largest_weight": concentration["largest_weight"],
-                "top5": concentration["top5"],
-                "hhi": concentration["hhi"],
-                "effective_n": concentration["effective_n"],
-            },
-            "portfolio_tickers": tickers,           # <<<<<< FULL TICKER LIST PASSED
-            "top_weights": top_weights,             # top weights for more context
-        }
-        llm_summary = _professional_llm_summary(payload, OPENAI_KEY)
+        # Format correlation insights for LLM
+        correlation_context = format_correlation_for_llm(correlation_insights)
+        
+        # Fetch news for market context (only if fetch_outlook enabled)
+        news_context = ""
+        if fetch_outlook:
+            try:
+                top_ticker_list = [t for t, _ in w_sorted[:5]]
+                news_data = get_market_and_holdings_news(top_ticker_list, days=7)
+                news_context = format_news_for_llm(news_data)
+            except Exception:
+                news_context = ""
+        
+        # Combine news and correlation context for LLM
+        full_context = f"{news_context}\n\n{correlation_context}" if news_context else correlation_context
+        
+        llm_summary = _professional_llm_summary(payload, _get_openai_key(), full_context)
 
     # Render weekly
     out_dir = REPORTS_DIR / week_end.isoformat()
@@ -691,6 +915,7 @@ def build_weekly_report(
         holdings=rows,
         risk=risk,
         concentration=concentration,
+        sector_breakdown=sector_data,
         breadth_block=breadth_block,
         liquidity={},  # optional; keep empty if you don't surface it
         top_contrib=top5,
@@ -699,7 +924,11 @@ def build_weekly_report(
         llm_summary=llm_summary,
     )
     Path(out_html).write_text(html, encoding="utf-8")
-    return {"status": "ok", "path": out_html}
+    
+    result = {"status": "ok", "path": out_html}
+    if return_payload:
+        result["payload"] = payload
+    return result
 
 # --------------------- DAILY REPORT ---------------------
 def build_daily_report(
@@ -795,7 +1024,7 @@ def build_daily_report(
             "portfolio_tickers": tickers,       # <<<<<< FULL TICKER LIST PASSED
             "top_weights": top_weights,
         }
-        llm_summary = _professional_llm_summary(payload, OPENAI_KEY)
+        llm_summary = _professional_llm_summary(payload, _get_openai_key())
 
     # Render
     out_dir = REPORTS_DIR / as_of.isoformat()

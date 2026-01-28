@@ -5,251 +5,823 @@
 <title>{{ title }}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.45; margin: 24px; color: #0f172a; }
-  h1 { margin: 0 0 4px 0; font-size: 1.6rem; }
-  h2 { margin: 16px 0 8px 0; font-size: 1.2rem; }
-  .muted { color: #475569; font-size: 0.95rem; }
-  .section { margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
-  .holding { padding: 12px 0; border-bottom: 1px dashed #e2e8f0; }
-  .title { font-weight: 700; font-size: 1.05rem; }
-  .pill-red { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#cc1f1a; }
-  .pill-blue { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#1d4ed8; }
-  .pill-green { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#15803d; }
-  .kv { margin: 2px 0; }
-  .kv b { color:#0f172a; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  table { width: 100%; border-collapse: collapse; margin: 8px 0; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
-  th { background: #f8fafc; }
-  .col-num { text-align: right; font-variant-numeric: tabular-nums; }
-  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-  @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+  :root {
+    --bg-primary: #0f1117;
+    --bg-secondary: #1a1d26;
+    --bg-card: #1e222d;
+    --bg-card-hover: #252a37;
+    --border: #2d3344;
+    --text-primary: #e8eaed;
+    --text-secondary: #9aa0a8;
+    --text-muted: #6b7280;
+    --accent-blue: #3b82f6;
+    --accent-green: #10b981;
+    --accent-red: #ef4444;
+    --accent-yellow: #f59e0b;
+    --accent-purple: #8b5cf6;
+    --accent-cyan: #06b6d4;
+    --gradient-green: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    --gradient-red: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    --gradient-blue: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    --gradient-purple: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  }
 
-  .rsi-overbought { color:#b91c1c; font-weight:600; }
-  .rsi-oversold { color:#1d4ed8; font-weight:600; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  .ai-box { border:1px solid #e5e7eb; background:#f9fafb; padding:12px; border-radius:10px; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-title { font-size: 1.75rem; font-weight: 700; color: var(--text-primary); }
+  .header-subtitle { font-size: 0.875rem; color: var(--text-secondary); margin-top: 4px; }
+  .header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+  .header-badge .dot { width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; }
+
+  /* KPI Grid */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 600px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .kpi-card.green::before { background: var(--gradient-green); }
+  .kpi-card.red::before { background: var(--gradient-red); }
+  .kpi-card.blue::before { background: var(--gradient-blue); }
+  .kpi-card.purple::before { background: var(--gradient-purple); }
+
+  .kpi-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .kpi-value { font-size: 1.75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kpi-subtext { font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
+  .kpi-change { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; font-weight: 600; margin-top: 8px; }
+  .kpi-change.positive { color: var(--accent-green); }
+  .kpi-change.negative { color: var(--accent-red); }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 20px;
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-title { font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+  .card-body { padding: 16px 20px; }
+
+  /* Grid layouts */
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 12px 16px; font-size: 0.875rem; }
+  th { 
+    background: var(--bg-secondary); 
+    color: var(--text-secondary); 
+    font-weight: 500; 
+    font-size: 0.75rem; 
+    text-transform: uppercase; 
+    letter-spacing: 0.5px;
+  }
+  td { border-bottom: 1px solid var(--border); color: var(--text-primary); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg-card-hover); }
+  .col-num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+
+  /* Pills / Badges */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .pill-red { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+  .pill-green { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+  .pill-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+  .pill-yellow { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+  
+  /* Blink animation for recent signals */
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    25%, 75% { opacity: 0.4; }
+  }
+  .blink {
+    animation: blink 1.5s ease-in-out infinite;
+  }
+
+  /* Performance indicators */
+  .perf-positive { color: var(--accent-green); }
+  .perf-negative { color: var(--accent-red); }
+  .perf-neutral { color: var(--text-secondary); }
+
+  /* AI Summary box */
+  .ai-summary {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .ai-summary h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1rem;
+    color: var(--accent-purple);
+    margin-bottom: 16px;
+  }
+  .ai-summary h3 .icon { font-size: 1.2rem; }
+  .ai-summary-content { 
+    font-size: 0.9rem; 
+    line-height: 1.7; 
+    color: var(--text-primary); 
+  }
+  .ai-summary-content strong { color: var(--accent-cyan); }
+
+  /* Horizon performance bar */
+  .horizon-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+  .horizon-item {
+    flex: 1;
+    min-width: 120px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    text-align: center;
+  }
+  .horizon-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; }
+  .horizon-values { display: flex; justify-content: center; gap: 16px; }
+  .horizon-val { font-size: 0.9rem; font-weight: 600; }
+  .horizon-val.port { color: var(--accent-blue); }
+  .horizon-val.bench { color: var(--text-secondary); }
+
+  /* Holdings accordion */
+  .holdings-list { display: grid; gap: 12px; }
+  .holding-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    transition: all 0.2s ease;
+  }
+  .holding-card:hover { border-color: var(--accent-blue); }
+  .holding-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+  .holding-ticker { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
+  .holding-weight { font-size: 0.85rem; color: var(--text-secondary); }
+  .holding-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .holding-stat { }
+  .holding-stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; }
+  .holding-stat-value { font-size: 0.9rem; font-weight: 500; margin-top: 2px; }
+  .holding-indicators { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  /* Progress bars */
+  .progress-bar {
+    height: 6px;
+    background: var(--bg-secondary);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
+  .progress-fill.green { background: var(--gradient-green); }
+  .progress-fill.red { background: var(--gradient-red); }
+  .progress-fill.blue { background: var(--gradient-blue); }
+
+  /* Sector breakdown */
+  .sector-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .sector-item {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .sector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .sector-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+  }
+  .sector-weight {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--accent-blue);
+  }
+  .sector-bar {
+    height: 8px;
+    background: var(--bg-card);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .sector-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+  }
+  .sector-tickers {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 8px;
+    line-height: 1.4;
+  }
+  .sector-summary {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+
+  /* Section titles */
+  .section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Mini sparkline placeholder */
+  .sparkline { display: inline-block; width: 60px; height: 20px; background: var(--bg-secondary); border-radius: 4px; }
+
+  /* RSI gauge */
+  .rsi-gauge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .rsi-bar {
+    flex: 1;
+    height: 8px;
+    background: linear-gradient(90deg, var(--accent-blue) 0%, var(--accent-green) 35%, var(--accent-yellow) 50%, var(--accent-red) 70%, var(--accent-red) 100%);
+    border-radius: 4px;
+    position: relative;
+    max-width: 100px;
+  }
+  .rsi-marker {
+    position: absolute;
+    top: -3px;
+    width: 4px;
+    height: 14px;
+    background: white;
+    border-radius: 2px;
+    transform: translateX(-50%);
+  }
+
+  /* Scrollable table wrapper */
+  .table-scroll { overflow-x: auto; }
+
+  /* Footer */
+  .footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
 </style>
 </head>
 <body>
-  <h1>Weekly Deep Dive Report</h1>
-  <div class="muted">Week ending {{ summary.week_end }} | Generated: {{ summary.generated_ts }}</div>
-
-  <div class="section">
-    <div class="kv"><b>Portfolio weekly return:</b> {{ summary.portfolio_weekly_return }}</div>
-    <div class="kv"><b>SPY weekly return:</b> {{ summary.spy_weekly_return }}</div>
-    <div class="kv"><b>Risk-free (1-week T-bill):</b> {{ summary.risk_free }}</div>
-    <div class="kv"><b>Breadth:</b> {{ summary.breadth }}</div>
-    <div class="kv"><b>Multi-horizon:</b>
-      1M {{ summary.ret_1m_p }} (SPY {{ summary.ret_1m_s }}),
-      3M {{ summary.ret_3m_p }} (SPY {{ summary.ret_3m_s }}),
-      6M {{ summary.ret_6m_p }} (SPY {{ summary.ret_6m_s }}),
-      12M {{ summary.ret_12m_p }} (SPY {{ summary.ret_12m_s }})
-    </div>
-  </div>
-
-  <div class="section grid">
-    <div>
-      <h2>Top 5 Weekly Contributors</h2>
-      <table>
-        <thead><tr><th>Ticker</th><th class="col-num">Start Wt</th><th class="col-num">Ret %</th><th class="col-num">CTR %</th><th class="col-num">$ Impact</th></tr></thead>
-        <tbody>
-          {% if top_contrib and top_contrib|length > 0 %}
-            {% for r in top_contrib %}
-              <tr>
-                <td>{{ r.ticker }}</td>
-                <td class="col-num">{{ "%.2f"|format(r.weight_start_pct) }}%</td>
-                <td class="col-num">{{ "%.2f"|format(r.ret_pct) }}%</td>
-                <td class="col-num">{{ "%.2f"|format(r.ctr_pct) }}%</td>
-                <td class="col-num">{{ "%.2f"|format(r.dollar) }}</td>
-              </tr>
-            {% endfor %}
-          {% else %}
-            <tr><td colspan="5">Data not available</td></tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-    <div>
-      <h2>Bottom 5 Weekly Contributors</h2>
-      <table>
-        <thead><tr><th>Ticker</th><th class="col-num">Start Wt</th><th class="col-num">Ret %</th><th class="col-num">CTR %</th><th class="col-num">$ Impact</th></tr></thead>
-        <tbody>
-          {% if bottom_contrib and bottom_contrib|length > 0 %}
-            {% for r in bottom_contrib %}
-              <tr>
-                <td>{{ r.ticker }}</td>
-                <td class="col-num">{{ "%.2f"|format(r.weight_start_pct) }}%</td>
-                <td class="col-num">{{ "%.2f"|format(r.ret_pct) }}%</td>
-                <td class="col-num">{{ "%.2f"|format(r.ctr_pct) }}%</td>
-                <td class="col-num">{{ "%.2f"|format(r.dollar) }}</td>
-              </tr>
-            {% endfor %}
-          {% else %}
-            <tr><td colspan="5">Data not available</td></tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="section grid">
-    <div>
-      <h2>Risk & Performance</h2>
-      <table>
-        <tbody>
-          <tr><td>Volatility σ (60D, annualized)</td><td class="col-num">{{ risk.sigma60 }}</td></tr>
-          <tr><td>Beta vs SPY (60D)</td><td class="col-num">{{ risk.beta60 }}</td></tr>
-          <tr><td>Alpha (60D, annualized)</td><td class="col-num">{{ risk.alpha60_annual }}</td></tr>
-          <tr><td>R² (60D)</td><td class="col-num">{{ risk.r2_60 }}</td></tr>
-          <tr><td>Sharpe (60D)</td><td class="col-num">{{ risk.sharpe60 }}</td></tr>
-          <tr><td>Tracking Error (252D, ann.)</td><td class="col-num">{{ risk.te_252 }}</td></tr>
-          <tr><td>Information Ratio (252D)</td><td class="col-num">{{ risk.ir_252 }}</td></tr>
-          <tr><td>Max Drawdown (252D)</td><td class="col-num">{{ risk.mdd_252 }}</td></tr>
-          <tr><td>Samples (60D / 252D)</td><td class="col-num">{{ risk.samples_60 }} / {{ risk.samples_252 }}</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div>
-      <h2>Concentration</h2>
-      <table>
-        <tbody>
-          <tr><td>Largest weight</td><td class="col-num">{{ concentration.largest_ticker }} — {{ concentration.largest_weight }}</td></tr>
-          <tr><td>Top 5 weight</td><td class="col-num">{{ concentration.top5 }}</td></tr>
-          <tr><td>Top 10 weight</td><td class="col-num">{{ concentration.top10 }}</td></tr>
-          <tr><td>HHI</td><td class="col-num">{{ concentration.hhi }}</td></tr>
-          <tr><td>Effective N</td><td class="col-num">{{ concentration.effective_n }}</td></tr>
-          <tr><td>Positions &gt; 7%</td><td class="col-num">{{ concentration.over_7pct|join(', ') if concentration.over_7pct else 'None' }}</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="section grid">
-    <div>
-      <h2>Risk Contributions (60D)</h2>
-      <table>
-        <thead><tr><th>Ticker</th><th class="col-num">Weight</th><th class="col-num">MCR</th><th class="col-num">PRC %</th></tr></thead>
-        <tbody>
-          {% if risk_contrib and risk_contrib|length > 0 %}
-            {% for r in risk_contrib %}
-              <tr>
-                <td>{{ r.ticker }}</td>
-                <td class="col-num">{{ r.weight_pct }}</td>
-                <td class="col-num">{{ r.mcr }}</td>
-                <td class="col-num">{{ r.prc_pct }}</td>
-              </tr>
-            {% endfor %}
-          {% else %}
-            <tr><td colspan="4">Data not available</td></tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-    <div>
-      <h2>Breadth & Technicals</h2>
-      <table>
-        <tbody>
-          <tr><td>% above 50D SMA</td><td class="col-num">{{ breadth_block.pct_above_50d }}</td></tr>
-          <tr><td>% above 200D SMA</td><td class="col-num">{{ breadth_block.pct_above_200d }}</td></tr>
-          <tr><td>Golden / Death cross count (50D vs 200D)</td><td class="col-num">{{ breadth_block.golden_cross }} / {{ breadth_block.death_cross }}</td></tr>
-          <tr><td>20D Breakouts / Breakdowns</td><td class="col-num">{{ breadth_block.breakouts20 }} / {{ breadth_block.breakdowns20 }}</td></tr>
-          <tr><td>Recent MACD crossovers (≤2): Bullish / Bearish</td><td class="col-num">{{ breadth_block.macd_recent_bull }} / {{ breadth_block.macd_recent_bear }}</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="section">
-    <h2>Per-Stock Details</h2>
-    {% for h in holdings %}
-      <div class="holding">
-        <div class="title">
-          {{ h.ticker }} — Shares: {{ "%.2f"|format(h.shares) }} — Weight: {{ h.weight_str }}
-          {% if h.macd_crossover_recent %}
-            {% if h.macd_crossover_type == 'bullish' %}
-              <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">MACD Bullish crossover (≤2)</span>
-            {% elif h.macd_crossover_type == 'bearish' %}
-              <span class="pill-red" title="MACD Bearish crossover in last 2 sessions">MACD Bearish crossover (≤2)</span>
-            {% endif %}
-          {% endif %}
-        </div>
-
-        <div class="kv"><b>Average Cost:</b>
-          {% if h.avg_cost is not none %}{{ "%.2f"|format(h.avg_cost) }}{% else %}Data not available{% endif %}
-          &nbsp; &nbsp; <b>Total Cost:</b>
-          {% if h.total_cost is not none %}{{ "%.2f"|format(h.total_cost) }}{% else %}Data not available{% endif %}
-        </div>
-
-        <div class="kv"><b>Current Price:</b>
-          {% if h.price is not none %}{{ "%.2f"|format(h.price) }}{% else %}Data not available{% endif %}
-          ({{ h.price_date or "Data not available" }})
-        </div>
-
-        <div class="kv"><b>Weekly change:</b>
-          {% if h.weekly_change_pct is not none %}{{ "%.2f"|format(h.weekly_change_pct) }}%{% else %}Data not available{% endif %}
-        </div>
-
-        <div class="kv"><b>Market Value:</b>
-          {% if h.market_value is not none %}{{ "%.2f"|format(h.market_value) }}{% else %}Data not available{% endif %}
-        </div>
-
-        <div class="kv"><b>Unrealized P&L:</b>
-          {% if h.unreal_dollar is not none %}{{ "%.2f"|format(h.unreal_dollar) }}{% else %}Data not available{% endif %}
-          {% if h.unreal_pct is not none %} ({{ "%.2f"|format(h.unreal_pct) }}%){% endif %}
-        </div>
-
-        <div class="kv"><b>RSI(14):</b>
-          {% if h.rsi14 is not none %}
-            <span class="{% if h.rsi14 >= 70 %}rsi-overbought{% elif h.rsi14 <= 30 %}rsi-oversold{% endif %}">
-              {{ "%.2f"|format(h.rsi14) }}
-            </span>
-            {% if h.rsi14 >= 70 %}
-              <span class="pill-red">Overbought ≥70</span>
-            {% elif h.rsi14 <= 30 %}
-              <span class="pill-blue">Oversold ≤30</span>
-            {% else %}
-              ({{ h.rsi_label }})
-            {% endif %}
-          {% else %}
-            Data not available
-          {% endif %}
-          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> {{ h.macd_direction }};
-          last crossover: {{ h.macd_last_cross }}
-        </div>
-
-        <div class="kv mono"><b>Data:</b> source={{ h.source }}; asof={{ h.asof_ts }}</div>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div>
+        <h1 class="header-title">📊 Portfolio Weekly Report</h1>
+        <div class="header-subtitle">Week ending {{ summary.week_end }} • Generated {{ summary.generated_ts }}</div>
       </div>
-    {% endfor %}
-  </div>
+      <div class="header-badge">
+        <span class="dot"></span>
+        Live Data
+      </div>
+    </header>
 
-  <div class="section">
-    <h2>Upcoming Earnings (next 14 days)</h2>
-    {% if summary.upcoming_earnings and summary.upcoming_earnings|length > 0 %}
-      <table>
-        <thead><tr><th>Ticker</th><th class="col-num">Date</th><th class="col-num">When</th></tr></thead>
-        <tbody>
-          {% for e in summary.upcoming_earnings %}
-            <tr>
-              <td>{{ e.ticker }}</td>
-              <td class="col-num">{{ e.date }}</td>
-              <td class="col-num">{{ e.when }}</td>
-            </tr>
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card {% if summary.total_unrealized_pnl >= 0 %}green{% else %}red{% endif %}">
+        <div class="kpi-label">Total Portfolio Value</div>
+        <div class="kpi-value">${{ "{:,.0f}".format(summary.total_market_value) }}</div>
+        <div class="kpi-change {% if summary.total_unrealized_pnl >= 0 %}positive{% else %}negative{% endif %}">
+          {% if summary.total_unrealized_pnl >= 0 %}▲{% else %}▼{% endif %}
+          ${{ "{:,.0f}".format(summary.total_unrealized_pnl|abs) }} ({{ "%.1f"|format(summary.total_unrealized_pct|default(0)) }}%)
+        </div>
+      </div>
+
+      <div class="kpi-card {% if summary.portfolio_weekly_return != 'Data not available' and summary.portfolio_weekly_return|replace('%','')|float >= 0 %}green{% else %}red{% endif %}">
+        <div class="kpi-label">Weekly Return</div>
+        <div class="kpi-value">{{ summary.portfolio_weekly_return }}</div>
+        <div class="kpi-subtext">SPY: {{ summary.spy_weekly_return }}</div>
+      </div>
+
+      <div class="kpi-card blue">
+        <div class="kpi-label">Positions</div>
+        <div class="kpi-value">{{ summary.position_count }}</div>
+        <div class="kpi-subtext">
+          <span class="perf-positive">{{ summary.winners }} ▲</span> &nbsp;
+          <span class="perf-negative">{{ summary.losers }} ▼</span> &nbsp;
+          <span class="perf-neutral">{{ summary.flat }} ◆</span>
+        </div>
+      </div>
+
+      <div class="kpi-card purple">
+        <div class="kpi-label">Market Breadth</div>
+        <div class="kpi-value">{{ summary.breadth }}</div>
+        <div class="kpi-subtext">Risk-free: {{ summary.risk_free.split('(')[0] if summary.risk_free else 'N/A' }}</div>
+      </div>
+    </div>
+
+    <!-- Multi-Horizon Performance -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📈 Multi-Horizon Performance</span>
+      </div>
+      <div class="card-body">
+        <div class="horizon-grid">
+          <div class="horizon-item">
+            <div class="horizon-label">1 Month</div>
+            <div class="horizon-values">
+              <span class="horizon-val port">{{ summary.ret_1m_p }}</span>
+              <span class="horizon-val bench">{{ summary.ret_1m_s }}</span>
+            </div>
+          </div>
+          <div class="horizon-item">
+            <div class="horizon-label">3 Month</div>
+            <div class="horizon-values">
+              <span class="horizon-val port">{{ summary.ret_3m_p }}</span>
+              <span class="horizon-val bench">{{ summary.ret_3m_s }}</span>
+            </div>
+          </div>
+          <div class="horizon-item">
+            <div class="horizon-label">6 Month</div>
+            <div class="horizon-values">
+              <span class="horizon-val port">{{ summary.ret_6m_p }}</span>
+              <span class="horizon-val bench">{{ summary.ret_6m_s }}</span>
+            </div>
+          </div>
+          <div class="horizon-item">
+            <div class="horizon-label">12 Month</div>
+            <div class="horizon-values">
+              <span class="horizon-val port">{{ summary.ret_12m_p }}</span>
+              <span class="horizon-val bench">{{ summary.ret_12m_s }}</span>
+            </div>
+          </div>
+        </div>
+        <div style="text-align: center; margin-top: 8px; font-size: 0.7rem; color: var(--text-muted);">
+          <span style="color: var(--accent-blue);">●</span> Portfolio &nbsp;&nbsp;
+          <span style="color: var(--text-secondary);">●</span> SPY Benchmark
+        </div>
+      </div>
+    </div>
+
+    <!-- Contributors Grid -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🏆 Top 5 Contributors</span>
+          <span class="pill pill-green">Winners</span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr><th>Ticker</th><th class="col-num">Weight</th><th class="col-num">Return</th><th class="col-num">CTR</th><th class="col-num">$ Impact</th></tr>
+              </thead>
+              <tbody>
+                {% if top_contrib and top_contrib|length > 0 %}
+                  {% for r in top_contrib %}
+                    <tr>
+                      <td><strong>{{ r.ticker }}</strong></td>
+                      <td class="col-num">{{ "%.2f"|format(r.weight_start_pct) }}%</td>
+                      <td class="col-num perf-positive">+{{ "%.2f"|format(r.ret_pct) }}%</td>
+                      <td class="col-num">{{ "%.2f"|format(r.ctr_pct) }}%</td>
+                      <td class="col-num perf-positive">+${{ "{:,.0f}".format(r.dollar) }}</td>
+                    </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr><td colspan="5" style="text-align:center; color: var(--text-muted);">No data available</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📉 Bottom 5 Contributors</span>
+          <span class="pill pill-red">Laggards</span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr><th>Ticker</th><th class="col-num">Weight</th><th class="col-num">Return</th><th class="col-num">CTR</th><th class="col-num">$ Impact</th></tr>
+              </thead>
+              <tbody>
+                {% if bottom_contrib and bottom_contrib|length > 0 %}
+                  {% for r in bottom_contrib %}
+                    <tr>
+                      <td><strong>{{ r.ticker }}</strong></td>
+                      <td class="col-num">{{ "%.2f"|format(r.weight_start_pct) }}%</td>
+                      <td class="col-num perf-negative">{{ "%.2f"|format(r.ret_pct) }}%</td>
+                      <td class="col-num">{{ "%.2f"|format(r.ctr_pct) }}%</td>
+                      <td class="col-num perf-negative">${{ "{:,.0f}".format(r.dollar) }}</td>
+                    </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr><td colspan="5" style="text-align:center; color: var(--text-muted);">No data available</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk & Concentration Grid -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">⚡ Risk & Performance Metrics</span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+          <table>
+            <tbody>
+              <tr><td>Volatility σ (60D, ann.)</td><td class="col-num"><strong>{{ risk.sigma60 }}</strong></td></tr>
+              <tr><td>Beta vs SPY (60D)</td><td class="col-num"><strong>{{ risk.beta60 }}</strong></td></tr>
+              <tr><td>Alpha (60D, ann.)</td><td class="col-num"><strong>{{ risk.alpha60_annual }}</strong></td></tr>
+              <tr><td>R² (60D)</td><td class="col-num">{{ risk.r2_60 }}</td></tr>
+              <tr><td>Sharpe Ratio (60D)</td><td class="col-num"><strong>{{ risk.sharpe60 }}</strong></td></tr>
+              <tr><td>Tracking Error (252D)</td><td class="col-num">{{ risk.te_252 }}</td></tr>
+              <tr><td>Information Ratio (252D)</td><td class="col-num">{{ risk.ir_252 }}</td></tr>
+              <tr><td>Max Drawdown (252D)</td><td class="col-num perf-negative"><strong>{{ risk.mdd_252 }}</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🎯 Concentration Analysis</span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+          <table>
+            <tbody>
+              <tr><td>Largest Position</td><td class="col-num"><strong>{{ concentration.largest_ticker }}</strong> — {{ concentration.largest_weight }}</td></tr>
+              <tr>
+                <td>Top 5 Weight</td>
+                <td class="col-num">
+                  {{ concentration.top5 }}
+                  <div class="progress-bar"><div class="progress-fill blue" style="width: {{ concentration.top5|replace('%','')|float }}%;"></div></div>
+                </td>
+              </tr>
+              <tr>
+                <td>Top 10 Weight</td>
+                <td class="col-num">
+                  {{ concentration.top10 }}
+                  <div class="progress-bar"><div class="progress-fill blue" style="width: {{ concentration.top10|replace('%','')|float }}%;"></div></div>
+                </td>
+              </tr>
+              <tr><td>HHI (Herfindahl)</td><td class="col-num">{{ concentration.hhi }}</td></tr>
+              <tr><td>Effective # Positions</td><td class="col-num">{{ concentration.effective_n }}</td></tr>
+              <tr><td>Positions &gt; 7%</td><td class="col-num">{{ concentration.over_7pct|join(', ') if concentration.over_7pct else 'None' }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sector Breakdown -->
+    {% if sector_breakdown and sector_breakdown.breakdown %}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🏭 Sector Allocation</span>
+        <span class="card-badge">{{ sector_breakdown.total_sectors }} sectors</span>
+      </div>
+      <div class="card-body">
+        <div class="sector-grid">
+          {% for s in sector_breakdown.breakdown %}
+          <div class="sector-item">
+            <div class="sector-header">
+              <span class="sector-name">{{ s.sector }}</span>
+              <span class="sector-weight">{{ s.weight_pct }}</span>
+            </div>
+            <div class="sector-bar">
+              <div class="sector-fill" style="width: {{ (s.weight * 100)|round(1) }}%; background: {{ s.color }};"></div>
+            </div>
+            <div class="sector-tickers">{{ s.count }} position{{ 's' if s.count != 1 else '' }}: {{ s.tickers|join(', ') }}</div>
+          </div>
           {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <div class="muted">No portfolio earnings in the next 14 days.</div>
+        </div>
+        {% if sector_breakdown.largest_sector %}
+        <div class="sector-summary">
+          <strong>Largest Sector:</strong> {{ sector_breakdown.largest_sector.sector }} ({{ sector_breakdown.largest_sector.weight_pct }})
+        </div>
+        {% endif %}
+      </div>
+    </div>
     {% endif %}
-  </div>
 
-  <div class="section">
-    <h2>AI Summary</h2>
-    {% if llm_summary %}
-      <div class="ai-box">{{ llm_summary | replace('\n','<br/>') | safe }}</div>
-    {% else %}
-      <div class="muted">AI summary not available.</div>
+    <!-- Risk Contributions & Technicals -->
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">🔥 Top Risk Contributors (60D)</span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Ticker</th><th class="col-num">Weight</th><th class="col-num">MCR</th><th class="col-num">Risk %</th></tr></thead>
+              <tbody>
+                {% if risk_contrib and risk_contrib|length > 0 %}
+                  {% for r in risk_contrib %}
+                    <tr>
+                      <td><strong>{{ r.ticker }}</strong></td>
+                      <td class="col-num">{{ r.weight_pct }}</td>
+                      <td class="col-num">{{ r.mcr }}</td>
+                      <td class="col-num">
+                        {{ r.prc_pct }}
+                        {% set prc_val = r.prc_pct|replace('%','')|float %}
+                        <div class="progress-bar"><div class="progress-fill red" style="width: {{ [prc_val, 100]|min }}%;"></div></div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr><td colspan="4" style="text-align:center; color: var(--text-muted);">No data available</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📊 Breadth & Technicals</span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+          <table>
+            <tbody>
+              <tr><td>Above 50D SMA</td><td class="col-num"><strong>{{ breadth_block.pct_above_50d }}</strong></td></tr>
+              <tr><td>Above 200D SMA</td><td class="col-num"><strong>{{ breadth_block.pct_above_200d }}</strong></td></tr>
+              <tr>
+                <td>Golden / Death Cross</td>
+                <td class="col-num">
+                  <span class="perf-positive" {% if breadth_block.golden_cross_tickers %}title="{{ breadth_block.golden_cross_tickers|join(', ') }}"{% endif %} style="cursor:help;">{{ breadth_block.golden_cross }}</span> / 
+                  <span class="perf-negative" {% if breadth_block.death_cross_tickers %}title="{{ breadth_block.death_cross_tickers|join(', ') }}"{% endif %} style="cursor:help;">{{ breadth_block.death_cross }}</span>
+                </td>
+              </tr>
+              <tr>
+                <td>20D Breakouts / Breakdowns</td>
+                <td class="col-num">
+                  <span class="perf-positive" {% if breadth_block.breakout_tickers %}title="{{ breadth_block.breakout_tickers|join(', ') }}"{% endif %} style="cursor:help;">{{ breadth_block.breakouts20 }}</span> / 
+                  <span class="perf-negative" {% if breadth_block.breakdown_tickers %}title="{{ breadth_block.breakdown_tickers|join(', ') }}"{% endif %} style="cursor:help;">{{ breadth_block.breakdowns20 }}</span>
+                </td>
+              </tr>
+              <tr><td>MACD Crossovers (≤3d)</td><td class="col-num"><span class="perf-positive">{{ breadth_block.macd_recent_bull }} Bull</span> / <span class="perf-negative">{{ breadth_block.macd_recent_bear }} Bear</span></td></tr>
+            </tbody>
+          </table>
+          {% if breadth_block.golden_cross_tickers or breadth_block.breakout_tickers %}
+          <div style="padding: 12px; border-top: 1px solid var(--border); font-size: 0.75rem;">
+            {% if breadth_block.golden_cross_tickers %}
+              <div style="margin-bottom: 6px;">
+                <span style="color: var(--accent-green);">✨ Golden Cross:</span>
+                <span style="color: var(--text-secondary);">{{ breadth_block.golden_cross_tickers|join(', ') }}</span>
+              </div>
+            {% endif %}
+            {% if breadth_block.breakout_tickers %}
+              <div>
+                <span style="color: var(--accent-green);">🚀 20D Breakouts:</span>
+                <span style="color: var(--text-secondary);">{{ breadth_block.breakout_tickers|join(', ') }}</span>
+              </div>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% if breadth_block.death_cross_tickers or breadth_block.breakdown_tickers %}
+          <div style="padding: 12px; border-top: 1px solid var(--border); font-size: 0.75rem;">
+            {% if breadth_block.death_cross_tickers %}
+              <div style="margin-bottom: 6px;">
+                <span style="color: var(--accent-red);">💀 Death Cross:</span>
+                <span style="color: var(--text-secondary);">{{ breadth_block.death_cross_tickers|join(', ') }}</span>
+              </div>
+            {% endif %}
+            {% if breadth_block.breakdown_tickers %}
+              <div>
+                <span style="color: var(--accent-red);">📉 20D Breakdowns:</span>
+                <span style="color: var(--text-secondary);">{{ breadth_block.breakdown_tickers|join(', ') }}</span>
+              </div>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Upcoming Earnings -->
+    {% if summary.upcoming_earnings and summary.upcoming_earnings|length > 0 %}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📅 Upcoming Earnings (Next 14 Days)</span>
+        <span class="pill pill-yellow">{{ summary.upcoming_earnings|length }} Events</span>
+      </div>
+      <div class="card-body" style="padding: 0;">
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Ticker</th><th class="col-num">Date</th><th class="col-num">Timing</th></tr></thead>
+            <tbody>
+              {% for e in summary.upcoming_earnings %}
+                <tr>
+                  <td><strong>{{ e.ticker }}</strong></td>
+                  <td class="col-num">{{ e.date }}</td>
+                  <td class="col-num">{{ e.when }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
     {% endif %}
+
+    <!-- AI Summary -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🤖 AI-Powered Analysis</span>
+        <span class="pill pill-blue">GPT-4</span>
+      </div>
+      <div class="card-body">
+        {% if llm_summary %}
+          <div class="ai-summary">
+            <div class="ai-summary-content">{{ llm_summary | replace('\n','<br/>') | replace('**', '<strong>') | replace('**', '</strong>') | safe }}</div>
+          </div>
+        {% else %}
+          <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+            <div style="font-size: 2rem; margin-bottom: 12px;">🤖</div>
+            <div>AI summary not available. Run with <code>--ai-summary</code> flag.</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Holdings Detail -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📋 Holdings Detail</span>
+        <span class="pill pill-blue">{{ holdings|length }} Positions</span>
+      </div>
+      <div class="card-body">
+        <div class="holdings-list">
+          {% for h in holdings %}
+            <div class="holding-card">
+              <div class="holding-header">
+                <div>
+                  <span class="holding-ticker">{{ h.ticker }}</span>
+                  <span class="holding-weight" style="margin-left: 12px;">{{ h.weight_str }} weight • {{ "%.0f"|format(h.shares) }} shares</span>
+                </div>
+                <div>
+                  {% if h.weekly_change_pct is not none %}
+                    <span class="pill {% if h.weekly_change_pct >= 0 %}pill-green{% else %}pill-red{% endif %}">
+                      {% if h.weekly_change_pct >= 0 %}+{% endif %}{{ "%.1f"|format(h.weekly_change_pct) }}% week
+                    </span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="holding-stats">
+                <div class="holding-stat">
+                  <div class="holding-stat-label">Price</div>
+                  <div class="holding-stat-value">${{ "%.2f"|format(h.price) if h.price else 'N/A' }}</div>
+                </div>
+                <div class="holding-stat">
+                  <div class="holding-stat-label">Avg Cost</div>
+                  <div class="holding-stat-value">${{ "%.2f"|format(h.avg_cost) if h.avg_cost else 'N/A' }}</div>
+                </div>
+                <div class="holding-stat">
+                  <div class="holding-stat-label">Market Value</div>
+                  <div class="holding-stat-value">${{ "{:,.0f}".format(h.market_value) if h.market_value else 'N/A' }}</div>
+                </div>
+                <div class="holding-stat">
+                  <div class="holding-stat-label">Unrealized P&L</div>
+                  <div class="holding-stat-value {% if h.unreal_dollar and h.unreal_dollar >= 0 %}perf-positive{% else %}perf-negative{% endif %}">
+                    {% if h.unreal_dollar is not none %}
+                      {% if h.unreal_dollar >= 0 %}+{% endif %}${{ "{:,.0f}".format(h.unreal_dollar) }}
+                      {% if h.unreal_pct is not none %}({{ "%.1f"|format(h.unreal_pct) }}%){% endif %}
+                    {% else %}N/A{% endif %}
+                  </div>
+                </div>
+                <div class="holding-stat">
+                  <div class="holding-stat-label">RSI (14)</div>
+                  <div class="holding-stat-value">
+                    {% if h.rsi14 is not none %}
+                      <span class="{% if h.rsi14 >= 70 %}perf-negative{% elif h.rsi14 <= 30 %}perf-positive{% endif %}">
+                        {{ "%.0f"|format(h.rsi14) }}
+                      </span>
+                      {% if h.rsi14 >= 70 %}<span class="pill pill-red" style="margin-left:4px;">OB</span>{% endif %}
+                      {% if h.rsi14 <= 30 %}<span class="pill pill-blue" style="margin-left:4px;">OS</span>{% endif %}
+                    {% else %}N/A{% endif %}
+                  </div>
+                </div>
+                <div class="holding-stat">
+                  <div class="holding-stat-label">MACD</div>
+                  <div class="holding-stat-value">{{ h.macd_direction }}</div>
+                </div>
+              </div>
+              {% if h.macd_crossover_recent or h.is_golden_cross or h.is_death_cross or h.is_breakout_20d or h.is_breakdown_20d %}
+                <div class="holding-indicators">
+                  {% if h.is_golden_cross %}
+                    <span class="pill pill-green">✨ Golden Cross</span>
+                  {% endif %}
+                  {% if h.is_death_cross %}
+                    <span class="pill pill-red">💀 Death Cross</span>
+                  {% endif %}
+                  {% if h.is_breakout_20d %}
+                    <span class="pill pill-green">🚀 20D Breakout</span>
+                  {% endif %}
+                  {% if h.is_breakdown_20d %}
+                    <span class="pill pill-red">📉 20D Breakdown</span>
+                  {% endif %}
+                  {% if h.macd_crossover_recent %}
+                    {% if h.macd_crossover_type == 'bullish' %}
+                      <span class="pill pill-green blink">⚡ MACD Bullish Cross</span>
+                    {% elif h.macd_crossover_type == 'bearish' %}
+                      <span class="pill pill-red blink">⚡ MACD Bearish Cross</span>
+                    {% endif %}
+                  {% endif %}
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Portfolio Weekly Report • Data sources: Yahoo Finance, FRED, Alpha Vantage • AI: OpenAI GPT-4</p>
+      <p>{{ summary.generated_ts }}</p>
+    </footer>
   </div>
 </body>
 </html>

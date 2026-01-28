@@ -35,8 +35,8 @@ class AlphaVantageNews(BaseNewsProvider):
         _AV_LIMITER.wait()
         r = self.client.get(ALPHA_NEWS_URL, params=params)
         if r.status_code == 429:
-            # back off politely; retry via tenacity wrapper
-            _AV_LIMITER.backoff(15)
+            # back off politely; sleep and let tenacity retry
+            time.sleep(15)
         r.raise_for_status()
         return r.json()
 

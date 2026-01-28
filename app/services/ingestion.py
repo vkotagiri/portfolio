@@ -150,6 +150,8 @@ def backfill_history(start: date, end: date):
                     upsert_prices(sess, rows)
                     total += len(rows)
                     logger.info(f"Fetched and inserted {len(rows)} rows for {t}.")
+                    sess.commit()
+
                 else:
                     logger.warning(f"No data fetched for {t} from {s} to {e}.")
             except Exception as ex:

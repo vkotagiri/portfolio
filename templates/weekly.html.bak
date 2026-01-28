@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{{ title }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.45; margin: 24px; color: #0f172a; }
+  h1 { margin: 0 0 4px 0; font-size: 1.6rem; }
+  h2 { margin: 16px 0 8px 0; font-size: 1.2rem; }
+  .muted { color: #475569; font-size: 0.95rem; }
+  .section { margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+  .holding { padding: 12px 0; border-bottom: 1px dashed #e2e8f0; }
+  .title { font-weight: 700; font-size: 1.05rem; }
+  .pill-red { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#cc1f1a; }
+  .pill-blue { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#1d4ed8; }
+  .pill-green { display:inline-block; margin-left:.5rem; padding:.15rem .5rem; border-radius:9999px; font-size:.82rem; font-weight:600; color:#fff; background:#15803d; }
+  .kv { margin: 2px 0; }
+  .kv b { color:#0f172a; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f8fafc; }
+  .col-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+
+  .rsi-overbought { color:#b91c1c; font-weight:600; }
+  .rsi-oversold { color:#1d4ed8; font-weight:600; }
+
+  .ai-box { border:1px solid #e5e7eb; background:#f9fafb; padding:12px; border-radius:10px; }
+</style>
+</head>
+<body>
+  <h1>Weekly Deep Dive Report</h1>
+  <div class="muted">Week ending {{ summary.week_end }} | Generated: {{ summary.generated_ts }}</div>
+
+  <div class="section">
+    <div class="kv"><b>Portfolio weekly return:</b> {{ summary.portfolio_weekly_return }}</div>
+    <div class="kv"><b>SPY weekly return:</b> {{ summary.spy_weekly_return }}</div>
+    <div class="kv"><b>Risk-free (1-week T-bill):</b> {{ summary.risk_free }}</div>
+    <div class="kv"><b>Breadth:</b> {{ summary.breadth }}</div>
+    <div class="kv"><b>Multi-horizon:</b>
+      1M {{ summary.ret_1m_p }} (SPY {{ summary.ret_1m_s }}),
+      3M {{ summary.ret_3m_p }} (SPY {{ summary.ret_3m_s }}),
+      6M {{ summary.ret_6m_p }} (SPY {{ summary.ret_6m_s }}),
+      12M {{ summary.ret_12m_p }} (SPY {{ summary.ret_12m_s }})
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Portfolio P&L Summary</h2>
+    <table style="max-width: 500px;">
+      <tbody>
+        <tr><td>Total Market Value</td><td class="col-num">${{ "{:,.2f}".format(summary.total_market_value) }}</td></tr>
+        <tr><td>Total Cost Basis</td><td class="col-num">${{ "{:,.2f}".format(summary.total_cost_basis) }}</td></tr>
+        <tr>
+          <td>Unrealized P&L</td>
+          <td class="col-num" style="color: {% if summary.total_unrealized_pnl >= 0 %}#15803d{% else %}#b91c1c{% endif %}; font-weight: 600;">
+            ${{ "{:,.2f}".format(summary.total_unrealized_pnl) }}
+            {% if summary.total_unrealized_pct is not none %}
+              ({{ "%.2f"|format(summary.total_unrealized_pct) }}%)
+            {% endif %}
+          </td>
+        </tr>
+        <tr><td>Positions</td><td class="col-num">{{ summary.position_count }} total ({{ summary.winners }} ▲ / {{ summary.losers }} ▼ / {{ summary.flat }} ◆)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section grid">
+    <div>
+      <h2>Top 5 Weekly Contributors</h2>
+      <table>
+        <thead><tr><th>Ticker</th><th class="col-num">Start Wt</th><th class="col-num">Ret %</th><th class="col-num">CTR %</th><th class="col-num">$ Impact</th></tr></thead>
+        <tbody>
+          {% if top_contrib and top_contrib|length > 0 %}
+            {% for r in top_contrib %}
+              <tr>
+                <td>{{ r.ticker }}</td>
+                <td class="col-num">{{ "%.2f"|format(r.weight_start_pct) }}%</td>
+                <td class="col-num">{{ "%.2f"|format(r.ret_pct) }}%</td>
+                <td class="col-num">{{ "%.2f"|format(r.ctr_pct) }}%</td>
+                <td class="col-num">{{ "%.2f"|format(r.dollar) }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="5">Data not available</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h2>Bottom 5 Weekly Contributors</h2>
+      <table>
+        <thead><tr><th>Ticker</th><th class="col-num">Start Wt</th><th class="col-num">Ret %</th><th class="col-num">CTR %</th><th class="col-num">$ Impact</th></tr></thead>
+        <tbody>
+          {% if bottom_contrib and bottom_contrib|length > 0 %}
+            {% for r in bottom_contrib %}
+              <tr>
+                <td>{{ r.ticker }}</td>
+                <td class="col-num">{{ "%.2f"|format(r.weight_start_pct) }}%</td>
+                <td class="col-num">{{ "%.2f"|format(r.ret_pct) }}%</td>
+                <td class="col-num">{{ "%.2f"|format(r.ctr_pct) }}%</td>
+                <td class="col-num">{{ "%.2f"|format(r.dollar) }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="5">Data not available</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section grid">
+    <div>
+      <h2>Risk & Performance</h2>
+      <table>
+        <tbody>
+          <tr><td>Volatility σ (60D, annualized)</td><td class="col-num">{{ risk.sigma60 }}</td></tr>
+          <tr><td>Beta vs SPY (60D)</td><td class="col-num">{{ risk.beta60 }}</td></tr>
+          <tr><td>Alpha (60D, annualized)</td><td class="col-num">{{ risk.alpha60_annual }}</td></tr>
+          <tr><td>R² (60D)</td><td class="col-num">{{ risk.r2_60 }}</td></tr>
+          <tr><td>Sharpe (60D)</td><td class="col-num">{{ risk.sharpe60 }}</td></tr>
+          <tr><td>Tracking Error (252D, ann.)</td><td class="col-num">{{ risk.te_252 }}</td></tr>
+          <tr><td>Information Ratio (252D)</td><td class="col-num">{{ risk.ir_252 }}</td></tr>
+          <tr><td>Max Drawdown (252D)</td><td class="col-num">{{ risk.mdd_252 }}</td></tr>
+          <tr><td>Samples (60D / 252D)</td><td class="col-num">{{ risk.samples_60 }} / {{ risk.samples_252 }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h2>Concentration</h2>
+      <table>
+        <tbody>
+          <tr><td>Largest weight</td><td class="col-num">{{ concentration.largest_ticker }} — {{ concentration.largest_weight }}</td></tr>
+          <tr><td>Top 5 weight</td><td class="col-num">{{ concentration.top5 }}</td></tr>
+          <tr><td>Top 10 weight</td><td class="col-num">{{ concentration.top10 }}</td></tr>
+          <tr><td>HHI</td><td class="col-num">{{ concentration.hhi }}</td></tr>
+          <tr><td>Effective N</td><td class="col-num">{{ concentration.effective_n }}</td></tr>
+          <tr><td>Positions &gt; 7%</td><td class="col-num">{{ concentration.over_7pct|join(', ') if concentration.over_7pct else 'None' }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section grid">
+    <div>
+      <h2>Risk Contributions (60D)</h2>
+      <table>
+        <thead><tr><th>Ticker</th><th class="col-num">Weight</th><th class="col-num">MCR</th><th class="col-num">PRC %</th></tr></thead>
+        <tbody>
+          {% if risk_contrib and risk_contrib|length > 0 %}
+            {% for r in risk_contrib %}
+              <tr>
+                <td>{{ r.ticker }}</td>
+                <td class="col-num">{{ r.weight_pct }}</td>
+                <td class="col-num">{{ r.mcr }}</td>
+                <td class="col-num">{{ r.prc_pct }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="4">Data not available</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h2>Breadth & Technicals</h2>
+      <table>
+        <tbody>
+          <tr><td>% above 50D SMA</td><td class="col-num">{{ breadth_block.pct_above_50d }}</td></tr>
+          <tr><td>% above 200D SMA</td><td class="col-num">{{ breadth_block.pct_above_200d }}</td></tr>
+          <tr><td>Golden / Death cross count (50D vs 200D)</td><td class="col-num">{{ breadth_block.golden_cross }} / {{ breadth_block.death_cross }}</td></tr>
+          <tr><td>20D Breakouts / Breakdowns</td><td class="col-num">{{ breadth_block.breakouts20 }} / {{ breadth_block.breakdowns20 }}</td></tr>
+          <tr><td>Recent MACD crossovers (≤2): Bullish / Bearish</td><td class="col-num">{{ breadth_block.macd_recent_bull }} / {{ breadth_block.macd_recent_bear }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Per-Stock Details</h2>
+    {% for h in holdings %}
+      <div class="holding">
+        <div class="title">
+          {{ h.ticker }} — Shares: {{ "%.2f"|format(h.shares) }} — Weight: {{ h.weight_str }}
+          {% if h.macd_crossover_recent %}
+            {% if h.macd_crossover_type == 'bullish' %}
+              <span class="pill-green" title="MACD Bullish crossover in last 2 sessions">MACD Bullish crossover (≤2)</span>
+            {% elif h.macd_crossover_type == 'bearish' %}
+              <span class="pill-red" title="MACD Bearish crossover in last 2 sessions">MACD Bearish crossover (≤2)</span>
+            {% endif %}
+          {% endif %}
+        </div>
+
+        <div class="kv"><b>Average Cost:</b>
+          {% if h.avg_cost is not none %}{{ "%.2f"|format(h.avg_cost) }}{% else %}Data not available{% endif %}
+          &nbsp; &nbsp; <b>Total Cost:</b>
+          {% if h.total_cost is not none %}{{ "%.2f"|format(h.total_cost) }}{% else %}Data not available{% endif %}
+        </div>
+
+        <div class="kv"><b>Current Price:</b>
+          {% if h.price is not none %}{{ "%.2f"|format(h.price) }}{% else %}Data not available{% endif %}
+          ({{ h.price_date or "Data not available" }})
+        </div>
+
+        <div class="kv"><b>Weekly change:</b>
+          {% if h.weekly_change_pct is not none %}{{ "%.2f"|format(h.weekly_change_pct) }}%{% else %}Data not available{% endif %}
+        </div>
+
+        <div class="kv"><b>Market Value:</b>
+          {% if h.market_value is not none %}{{ "%.2f"|format(h.market_value) }}{% else %}Data not available{% endif %}
+        </div>
+
+        <div class="kv"><b>Unrealized P&L:</b>
+          {% if h.unreal_dollar is not none %}{{ "%.2f"|format(h.unreal_dollar) }}{% else %}Data not available{% endif %}
+          {% if h.unreal_pct is not none %} ({{ "%.2f"|format(h.unreal_pct) }}%){% endif %}
+        </div>
+
+        <div class="kv"><b>RSI(14):</b>
+          {% if h.rsi14 is not none %}
+            <span class="{% if h.rsi14 >= 70 %}rsi-overbought{% elif h.rsi14 <= 30 %}rsi-oversold{% endif %}">
+              {{ "%.2f"|format(h.rsi14) }}
+            </span>
+            {% if h.rsi14 >= 70 %}
+              <span class="pill-red">Overbought ≥70</span>
+            {% elif h.rsi14 <= 30 %}
+              <span class="pill-blue">Oversold ≤30</span>
+            {% else %}
+              ({{ h.rsi_label }})
+            {% endif %}
+          {% else %}
+            Data not available
+          {% endif %}
+          &nbsp; | &nbsp; <b>MACD(12,26,9):</b> {{ h.macd_direction }};
+          last crossover: {{ h.macd_last_cross }}
+        </div>
+
+        <div class="kv mono"><b>Data:</b> source={{ h.source }}; asof={{ h.asof_ts }}</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="section">
+    <h2>Upcoming Earnings (next 14 days)</h2>
+    {% if summary.upcoming_earnings and summary.upcoming_earnings|length > 0 %}
+      <table>
+        <thead><tr><th>Ticker</th><th class="col-num">Date</th><th class="col-num">When</th></tr></thead>
+        <tbody>
+          {% for e in summary.upcoming_earnings %}
+            <tr>
+              <td>{{ e.ticker }}</td>
+              <td class="col-num">{{ e.date }}</td>
+              <td class="col-num">{{ e.when }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="muted">No portfolio earnings in the next 14 days.</div>
+    {% endif %}
+  </div>
+
+  <div class="section">
+    <h2>AI Summary</h2>
+    {% if llm_summary %}
+      <div class="ai-box">{{ llm_summary | replace('\n','<br/>') | safe }}</div>
+    {% else %}
+      <div class="muted">AI summary not available.</div>
+    {% endif %}
+  </div>
+</body>
+</html>

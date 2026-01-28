@@ -1,6 +1,8 @@
 # app/services/outlook_yf.py
 from __future__ import annotations
 import time
+import logging
+import signal
 from typing import Dict, List, Tuple
 
 try:
@@ -8,8 +10,17 @@ try:
 except Exception:
     yf = None
 
-DEFAULT_RPM = 30   # polite default requests per minute
-DEFAULT_MAX = 40   # total call cap per run
+logger = logging.getLogger(__name__)
+
+DEFAULT_RPM = 60   # faster rate - yfinance can handle it
+DEFAULT_MAX = 10   # reduced cap per run to speed up
+TICKER_TIMEOUT = 3  # seconds per ticker lookup
+
+class TimeoutError(Exception):
+    pass
+
+def _timeout_handler(signum, frame):
+    raise TimeoutError("Ticker fetch timed out")
 
 def fetch_next_earnings(
     tickers: List[str],
@@ -27,24 +38,53 @@ def fetch_next_earnings(
 
     out: Dict[str, Tuple[str | None, str]] = {}
     # seconds between calls (rpm ~ requests/min)
-    interval = max(60.0 / max(rpm, 1), 0.5)
+    interval = max(60.0 / max(rpm, 1), 0.3)
     calls = 0
+    
+    # Limit tickers to process
+    tickers_to_process = tickers[:max_calls]
+    
+    # Store original signal handler
+    original_handler = signal.getsignal(signal.SIGALRM)
 
-    for t in tickers:
+    for t in tickers_to_process:
         if calls >= max_calls:
             out[t] = (None, "throttle-cap")
             continue
+        
         try:
-            # This method typically hits a lighter endpoint than quoteSummary?modules=calendarEvents
-            edf = yf.Ticker(t).get_earnings_dates(limit=1)
-            calls += 1
-            if edf is not None and not edf.empty:
-                d = edf.index[0].date().isoformat()
-                out[t] = (d, "yfinance")
-            else:
-                out[t] = (None, "yfinance")
+            # Set up timeout using signal (only works on Unix)
+            signal.signal(signal.SIGALRM, _timeout_handler)
+            signal.alarm(TICKER_TIMEOUT)
+            
+            try:
+                edf = yf.Ticker(t).get_earnings_dates(limit=1)
+                signal.alarm(0)  # Cancel alarm
+                calls += 1
+                if edf is not None and not edf.empty:
+                    d = edf.index[0].date().isoformat()
+                    out[t] = (d, "yfinance")
+                else:
+                    out[t] = (None, "yfinance")
+            except TimeoutError:
+                logger.debug(f"Timeout fetching earnings for {t}")
+                out[t] = (None, "timeout")
+            except Exception as e:
+                logger.debug(f"Error fetching earnings for {t}: {e}")
+                out[t] = (None, "yfinance-error")
+            finally:
+                signal.alarm(0)  # Ensure alarm is cancelled
         except Exception:
             out[t] = (None, "yfinance-error")
+        
         time.sleep(interval)
+
+    # Restore original signal handler
+    signal.signal(signal.SIGALRM, original_handler)
+
+    # Fill in remaining tickers that weren't processed
+    for t in tickers:
+        if t not in out:
+            out[t] = (None, "throttle-cap")
 
     return out

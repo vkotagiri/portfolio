@@ -1,5 +1,8 @@
+from contextlib import contextmanager
+from typing import Generator
+
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
 from .config import settings
 
 engine = create_engine(settings.database_url, future=True, pool_pre_ping=True)
@@ -15,5 +18,22 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, futu
 class Base(DeclarativeBase):
     pass
 
-def get_session():
-    return SessionLocal()
+
+@contextmanager
+def get_session() -> Generator[Session, None, None]:
+    """
+    Provide a transactional scope around a series of operations.
+    
+    Usage:
+        with get_session() as sess:
+            sess.query(...)
+            sess.commit()  # if needed
+    
+    Session is automatically closed when exiting the context,
+    even if an exception occurs.
+    """
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()

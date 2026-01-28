@@ -100,15 +100,48 @@ class Settings(BaseSettings):
     )
 
     # ---- Alpha Vantage throttling (free-tier friendly) ----
-    av_rpm: int = Field(
+    alphavantage_rpm: int = Field(
         5, validation_alias=AliasChoices("ALPHAVANTAGE_RPM", "av_rpm")
     )
-    av_daily: int = Field(
-        500, validation_alias=AliasChoices("ALPHAVANTAGE_DAILY", "av_daily")
+    alphavantage_rpd: int = Field(
+        25, validation_alias=AliasChoices("ALPHAVANTAGE_RPD", "av_daily")
+    )
+    alphavantage_burst: int = Field(
+        5, validation_alias=AliasChoices("ALPHAVANTAGE_BURST", "av_burst")
     )
     av_debug: bool = Field(
         False, validation_alias=AliasChoices("ALPHAVANTAGE_DEBUG", "av_debug")
     )
 
+    # ---- Email Notifications ----
+    smtp_host: str = Field(
+        "smtp.gmail.com", validation_alias=AliasChoices("SMTP_HOST", "smtp_host")
+    )
+    smtp_port: int = Field(
+        587, validation_alias=AliasChoices("SMTP_PORT", "smtp_port")
+    )
+    smtp_user: str | None = Field(
+        default=None, validation_alias=AliasChoices("SMTP_USER", "smtp_user")
+    )
+    smtp_password: str | None = Field(
+        default=None, validation_alias=AliasChoices("SMTP_PASSWORD", "smtp_password")
+    )
+    email_to: str | None = Field(
+        default=None, validation_alias=AliasChoices("EMAIL_TO", "email_to"),
+        description="Recipient email for portfolio notifications"
+    )
+    email_from: str | None = Field(
+        default=None, validation_alias=AliasChoices("EMAIL_FROM", "email_from"),
+        description="Sender email (defaults to SMTP_USER)"
+    )
+    smtp_use_tls: bool = Field(
+        True, validation_alias=AliasChoices("SMTP_USE_TLS", "smtp_use_tls"),
+        description="Use STARTTLS (True) or SSL (False)"
+    )
+    report_base_url: str | None = Field(
+        default=None, 
+        validation_alias=AliasChoices("REPORT_BASE_URL", "report_base_url"),
+        description="Base URL for report links in emails (e.g., http://localhost:8080)"
+    )
 
 settings = Settings()
