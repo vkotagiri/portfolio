@@ -294,6 +294,98 @@
     color: var(--text-secondary);
   }
 
+  /* Risk Dashboard */
+  .risk-dashboard {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 900px) { .risk-dashboard { grid-template-columns: 1fr; } }
+  
+  .risk-panel {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .risk-panel-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .vix-value {
+    font-size: 2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .vix-regime {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  .vix-regime.low { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+  .vix-regime.normal { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+  .vix-regime.elevated { background: rgba(249, 115, 22, 0.2); color: #f97316; }
+  .vix-regime.high { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+  .vix-regime.crisis { background: rgba(239, 68, 68, 0.3); color: #ff6b6b; }
+  
+  .vix-stats {
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+  .vix-stats span { margin-right: 12px; }
+  
+  .stress-impact {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-red);
+  }
+  .stress-list {
+    margin-top: 12px;
+    font-size: 0.8rem;
+  }
+  .stress-list dt {
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+  .stress-list dd {
+    color: var(--text-primary);
+    margin-left: 0;
+  }
+  
+  .alert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+  }
+  .alert-item:last-child { margin-bottom: 0; }
+  .alert-item.warning { background: rgba(245, 158, 11, 0.15); border-left: 3px solid var(--accent-yellow); }
+  .alert-item.critical { background: rgba(239, 68, 68, 0.15); border-left: 3px solid var(--accent-red); }
+  .alert-icon { font-size: 1rem; }
+  .alert-content { flex: 1; }
+  .alert-title { font-weight: 600; color: var(--text-primary); }
+  .alert-message { color: var(--text-secondary); margin-top: 2px; }
+  .no-alerts {
+    color: var(--accent-green);
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   /* Section titles */
   .section-title {
     font-size: 1.1rem;
@@ -581,6 +673,96 @@
           <strong>Largest Sector:</strong> {{ sector_breakdown.largest_sector.sector }} ({{ sector_breakdown.largest_sector.weight_pct }})
         </div>
         {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Risk Dashboard -->
+    {% if risk_dashboard %}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📊 Risk Dashboard</span>
+        {% if risk_dashboard.has_critical_alerts %}
+        <span class="card-badge" style="background: rgba(239, 68, 68, 0.2); color: var(--accent-red);">⚠️ Alert</span>
+        {% elif risk_dashboard.has_alerts %}
+        <span class="card-badge" style="background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow);">⚠️ Warning</span>
+        {% else %}
+        <span class="card-badge" style="background: rgba(16, 185, 129, 0.2); color: var(--accent-green);">✓ Normal</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <div class="risk-dashboard">
+          <!-- VIX Panel -->
+          <div class="risk-panel">
+            <div class="risk-panel-title">📈 VIX (Fear Index)</div>
+            {% if risk_dashboard.vix and risk_dashboard.vix.current %}
+            <div>
+              <span class="vix-value">{{ "%.1f"|format(risk_dashboard.vix.current) }}</span>
+              <span class="vix-regime {{ risk_dashboard.vix.regime }}">{{ risk_dashboard.vix.regime_label }}</span>
+            </div>
+            <div class="vix-stats">
+              <span>📊 {{ risk_dashboard.vix.percentile }}th %ile (1Y)</span>
+              <span>📉 {{ risk_dashboard.vix.trend }}</span>
+              <span>Δ5D: {{ "%+.1f"|format(risk_dashboard.vix.change_5d) }}</span>
+            </div>
+            <div class="vix-stats" style="margin-top: 8px;">
+              <span>20D Avg: {{ risk_dashboard.vix.avg_20d }}</span>
+              <span>1Y Range: {{ risk_dashboard.vix.low_1y }} - {{ risk_dashboard.vix.high_1y }}</span>
+            </div>
+            {% else %}
+            <div style="color: var(--text-muted);">VIX data not available</div>
+            {% endif %}
+          </div>
+
+          <!-- Stress Test Panel -->
+          <div class="risk-panel">
+            <div class="risk-panel-title">🔻 Stress Test: SPY -10%</div>
+            {% if risk_dashboard.stress_test %}
+            <div class="stress-impact">{{ "%+.1f"|format(risk_dashboard.stress_test.portfolio_impact) }}%</div>
+            <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 4px;">Expected portfolio impact</div>
+            <dl class="stress-list">
+              {% if risk_dashboard.stress_test.vulnerable %}
+              <dt>Most Vulnerable:</dt>
+              <dd>
+                {% for v in risk_dashboard.stress_test.vulnerable[:3] %}
+                {{ v.ticker }} ({{ "%+.0f"|format(v.estimated_move) }}%){% if not loop.last %}, {% endif %}
+                {% endfor %}
+              </dd>
+              {% endif %}
+              {% if risk_dashboard.stress_test.hedges %}
+              <dt>Natural Hedges:</dt>
+              <dd style="color: var(--accent-green);">
+                {% for h in risk_dashboard.stress_test.hedges[:3] %}
+                {{ h.ticker }} ({{ "%+.0f"|format(h.estimated_move) }}%){% if not loop.last %}, {% endif %}
+                {% endfor %}
+              </dd>
+              {% endif %}
+            </dl>
+            {% else %}
+            <div style="color: var(--text-muted);">Stress test data not available</div>
+            {% endif %}
+          </div>
+
+          <!-- Alerts Panel -->
+          <div class="risk-panel">
+            <div class="risk-panel-title">🚨 Active Alerts</div>
+            {% if risk_dashboard.alerts and risk_dashboard.alerts|length > 0 %}
+              {% for alert in risk_dashboard.alerts %}
+              <div class="alert-item {{ alert.severity }}">
+                <span class="alert-icon">{% if alert.severity == 'critical' %}🔴{% else %}⚠️{% endif %}</span>
+                <div class="alert-content">
+                  <div class="alert-title">{{ alert.title }}</div>
+                  <div class="alert-message">{{ alert.message }}</div>
+                </div>
+              </div>
+              {% endfor %}
+            {% else %}
+              <div class="no-alerts">
+                <span>✓</span> All risk metrics within normal ranges
+              </div>
+            {% endif %}
+          </div>
+        </div>
       </div>
     </div>
     {% endif %}

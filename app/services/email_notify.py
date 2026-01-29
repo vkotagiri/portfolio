@@ -110,16 +110,41 @@ def _generate_pm_brief(report_data: Dict[str, Any], api_key: Optional[str], repo
             sector_str = ", ".join([f"{s['sector']} ({s['weight_pct']})" for s in top_sectors])
             context_lines.append(f"Top Sectors: {sector_str}")
         
+        # Risk dashboard (VIX, stress test, alerts)
+        risk_dash = report_data.get("risk_dashboard") or {}
+        vix = risk_dash.get("vix") or {}
+        if vix.get("current"):
+            context_lines.append(f"\n--- RISK DASHBOARD ---")
+            context_lines.append(f"VIX: {vix['current']:.1f} ({vix.get('regime_label', 'N/A')}, {vix.get('percentile', 0):.0f}th percentile)")
+            context_lines.append(f"VIX 5-day change: {vix.get('change_5d', 0):+.1f}")
+        
+        stress = risk_dash.get("stress_test") or {}
+        if stress.get("portfolio_impact"):
+            context_lines.append(f"STRESS TEST (SPY -10%): Portfolio would drop {abs(stress['portfolio_impact']):.1f}%")
+            if stress.get("vulnerable"):
+                vuln = ", ".join([f"{v['ticker']} ({v['estimated_move']:+.0f}%)" for v in stress["vulnerable"][:3]])
+                context_lines.append(f"Most vulnerable: {vuln}")
+            if stress.get("hedges"):
+                hedges = ", ".join([f"{h['ticker']} ({h['estimated_move']:+.0f}%)" for h in stress["hedges"][:3]])
+                context_lines.append(f"Natural hedges: {hedges}")
+        
+        alerts = risk_dash.get("alerts") or []
+        if alerts:
+            context_lines.append(f"\n🚨 RISK ALERTS ({len(alerts)}):")
+            for alert in alerts:
+                severity = "CRITICAL" if alert["severity"] == "critical" else "WARNING"
+                context_lines.append(f"  [{severity}] {alert['title']}: {alert['message']}")
+        
         context = "\n".join(context_lines)
         
         system_prompt = """You are a senior portfolio manager sending a brief morning email to yourself or your team.
 
 Write a concise, professional email brief (NOT a full report). Format:
 
-SUBJECT LINE: Generate a compelling 5-8 word subject summarizing the key point
+SUBJECT LINE: Generate a compelling 5-8 word subject summarizing the key point (include VIX regime if notable)
 
 BODY:
-1. Bottom Line Up Front (1-2 sentences): What's the single most important thing?
+1. Bottom Line Up Front (1-2 sentences): What's the single most important thing? Include VIX/volatility context.
 
 2. This Week's Numbers: 
    - Portfolio vs benchmark (outperform/underperform by how much?)
@@ -131,17 +156,19 @@ BODY:
    - Note RSI overbought (>70) or oversold (<30) positions
    - These are actionable trading signals - be specific!
 
-4. Action Items (bullet points, be specific):
-   - What trades to consider based on technical signals
+4. Risk Dashboard:
+   - VIX level and what it means (low=complacent, elevated=caution, high=fear)
+   - Stress test results (SPY -10% scenario)
+   - Any active risk alerts - these are CRITICAL to mention
+   - Natural hedges working for/against you
+
+5. Action Items (bullet points, be specific):
+   - What trades to consider based on technical signals AND risk dashboard
+   - If VIX is elevated, suggest defensive moves
+   - If stress test shows high vulnerability, suggest hedging
    - Positions to trim or add based on signals
-   - Any positions to exit due to bearish signals
 
-5. Risk Check:
-   - Concentration concerns (top 5 weight)
-   - Correlation clusters needing attention
-   - Diversification score assessment
-
-Keep it under 300 words. Be direct and actionable.
+Keep it under 350 words. Be direct and actionable.
 Do NOT use markdown formatting like ** or __ - use plain text only.
 Start directly with the subject line, no preamble."""
 

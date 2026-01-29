@@ -30,6 +30,7 @@ from .outlook_yf import fetch_next_earnings
 from .news import get_market_and_holdings_news, format_news_for_llm
 from .sectors import get_sector_breakdown
 from .correlation import get_correlation_analysis, format_correlation_for_llm
+from .volatility import build_risk_dashboard, format_risk_dashboard_for_llm
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 TEMPLATES = ROOT_DIR / "templates"
@@ -707,6 +708,52 @@ def build_weekly_report(
             sess, tickers, weights_now, sector_map, week_end, lookback_days=60
         )
 
+        # Calculate individual ticker betas for stress testing
+        ticker_betas = {}
+        if not spy.empty:
+            spy_ret = spy.pct_change(fill_method=None).dropna()
+            for ticker in tickers:
+                try:
+                    ts = _series_for(sess, ticker, week_end, 80)
+                    if not ts.empty and len(ts) >= 30:
+                        tr = ts.pct_change(fill_method=None).dropna()
+                        idx = tr.index.intersection(spy_ret.index)
+                        if len(idx) >= 30:
+                            ba = _beta_alpha_ols(tr.loc[idx], spy_ret.loc[idx])
+                            if ba:
+                                ticker_betas[ticker] = ba[0]  # beta
+                except Exception:
+                    pass
+
+        # Build risk dashboard (VIX, stress test, alerts)
+        holdings_for_stress = [{"ticker": t, "weight": weights_now.get(t, 0)} for t in tickers]
+        
+        # Extract portfolio beta as float
+        portfolio_beta_val = None
+        try:
+            beta_str = risk.get("beta60", "")
+            if beta_str and beta_str != "Data not available":
+                portfolio_beta_val = float(beta_str)
+        except (ValueError, TypeError):
+            pass
+        
+        # Extract portfolio vol as float
+        portfolio_vol_val = None
+        try:
+            vol_str = risk.get("sigma60", "")
+            if vol_str and vol_str != "Data not available":
+                portfolio_vol_val = float(vol_str.replace("%", ""))
+        except (ValueError, TypeError):
+            pass
+        
+        risk_dashboard = build_risk_dashboard(
+            holdings=holdings_for_stress,
+            ticker_betas=ticker_betas,
+            portfolio_vol=portfolio_vol_val,
+            portfolio_beta=portfolio_beta_val,
+            as_of=week_end,
+        )
+
         # Breadth / technical counts (aggregated from per-holding calculations)
         above50 = sum(1 for r in rows if r.get("is_above_50d"))
         above200 = sum(1 for r in rows if r.get("is_above_200d"))
@@ -881,6 +928,13 @@ def build_weekly_report(
             "redundant": correlation_insights.get("redundant_positions", []),
         },
         "sector_breakdown": sector_data.get("breakdown", []),
+        # Risk dashboard (VIX, stress test, alerts)
+        "risk_dashboard": {
+            "vix": risk_dashboard.get("vix", {}),
+            "stress_test": risk_dashboard.get("stress_test", {}),
+            "alerts": risk_dashboard.get("alerts", []),
+            "summary": risk_dashboard.get("summary", ""),
+        },
     }
     
     # LLM summary generation
@@ -899,8 +953,11 @@ def build_weekly_report(
             except Exception:
                 news_context = ""
         
-        # Combine news and correlation context for LLM
-        full_context = f"{news_context}\n\n{correlation_context}" if news_context else correlation_context
+        # Format risk dashboard for LLM
+        risk_context = format_risk_dashboard_for_llm(risk_dashboard)
+        
+        # Combine news, correlation, and risk context for LLM
+        full_context = "\n\n".join(filter(None, [news_context, correlation_context, risk_context]))
         
         llm_summary = _professional_llm_summary(payload, _get_openai_key(), full_context)
 
@@ -917,6 +974,7 @@ def build_weekly_report(
         concentration=concentration,
         sector_breakdown=sector_data,
         breadth_block=breadth_block,
+        risk_dashboard=risk_dashboard,
         liquidity={},  # optional; keep empty if you don't surface it
         top_contrib=top5,
         bottom_contrib=bot5,
