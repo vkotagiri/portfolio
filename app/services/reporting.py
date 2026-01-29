@@ -673,6 +673,14 @@ def build_weekly_report(
                 if mdd is not None:
                     risk["mdd_252"] = f"{mdd * 100.0:.2f}%"
                 risk["samples_252"] = int(len(pr252))
+        
+        # Calculate CURRENT drawdown (how far below peak right now)
+        current_dd_pct = None
+        if not pv_252.empty:
+            peak = pv_252.cummax()
+            current_dd = (pv_252.iloc[-1] / peak.iloc[-1]) - 1.0
+            current_dd_pct = float(current_dd * 100.0)
+            risk["current_drawdown"] = f"{current_dd_pct:.2f}%"
 
         # Concentration snapshot
         w_sorted = sorted([(t, weights_now.get(t, 0.0)) for t in tickers if t in weights_now],
@@ -746,12 +754,13 @@ def build_weekly_report(
         except (ValueError, TypeError):
             pass
         
-        # Extract current drawdown as float
+        # Extract current drawdown as float (actual current drawdown, not max historical)
         current_drawdown = None
         try:
-            mdd_str = risk.get("mdd_252", "")
-            if mdd_str and mdd_str != "Data not available":
-                current_drawdown = float(mdd_str.replace("%", ""))
+            # Use the current_drawdown we calculated, not mdd_252
+            dd_str = risk.get("current_drawdown", "")
+            if dd_str and dd_str != "Data not available":
+                current_drawdown = float(dd_str.replace("%", ""))
         except (ValueError, TypeError):
             pass
         
