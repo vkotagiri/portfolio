@@ -602,5 +602,49 @@ def daily_returns_cmd(
                 active_str = f"{r.active_return_pct:+.2f}%" if r.active_return_pct else "N/A"
                 typer.echo(f"{r.date:<12} ${r.portfolio_value:>13,.2f} {daily_str:>10} {cum_str:>12} {active_str:>10}")
 
+
+@app.command("market-brief")
+def market_brief_cmd(
+    brief_type: str = typer.Argument("midday", help="Brief type: 'midday' (12 PM) or 'afternoon' (4:30 PM)"),
+    no_email: bool = typer.Option(False, "--no-email", help="Generate brief but don't send email"),
+):
+    """
+    Generate and send AI-powered market news brief.
+    
+    Covers market events, portfolio holdings news, and geopolitical/macro news.
+    Designed to run at 12 PM (midday) and 4:30 PM (afternoon/close).
+    """
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
+    
+    from ..services.market_brief import run_market_brief, aggregate_news, generate_ai_market_brief, fetch_portfolio_tickers
+    
+    if brief_type not in ("midday", "afternoon"):
+        typer.echo("Brief type must be 'midday' or 'afternoon'")
+        raise typer.Exit(1)
+    
+    typer.echo(f"📰 Generating {brief_type} market brief...")
+    
+    if no_email:
+        # Generate without sending
+        portfolio_tickers = fetch_portfolio_tickers()
+        typer.echo(f"  Portfolio: {len(portfolio_tickers)} tickers")
+        
+        hours_back = 12 if brief_type == "midday" else 6
+        news_data = aggregate_news(portfolio_tickers, hours_back=hours_back)
+        total_news = sum(len(v) for v in news_data.values())
+        typer.echo(f"  News items: {total_news} (market: {len(news_data['market'])}, portfolio: {len(news_data['portfolio'])}, macro: {len(news_data['macro'])})")
+        
+        brief_content = generate_ai_market_brief(news_data, portfolio_tickers, brief_type)
+        typer.echo("\n" + "="*60)
+        typer.echo(brief_content)
+        typer.echo("="*60)
+    else:
+        result = run_market_brief(brief_type)
+        typer.echo(f"  Status: {result['status']}")
+        typer.echo(f"  News items: {result['news_count']}")
+        typer.echo(f"  Email sent: {'✓' if result['email_sent'] else '✗'}")
+
+
 if __name__ == "__main__":
     app()
