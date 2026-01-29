@@ -103,7 +103,7 @@ fi
 echo -e "${GREEN}✓ Report generated at: $REPORTS_DIR/$NEW_LAST_DATE/weekly.html${NC}"
 
 # Step 7: Start HTTP server
-echo -e "${YELLOW}[Step 7]${NC} Starting HTTP server on port $HTTP_PORT...""
+echo -e "${YELLOW}[Step 7]${NC} Starting HTTP server on port $HTTP_PORT..."
 echo ""
 echo -e "${BLUE}========================================${NC}"
 echo -e "${GREEN}Reports available at:${NC}"
