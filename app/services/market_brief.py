@@ -28,13 +28,213 @@ logger = logging.getLogger(__name__)
 MARKET_TICKERS = ["SPY", "QQQ", "DIA", "IWM", "VIX"]
 
 # Macro/geopolitical topics to search
-MACRO_TOPICS = ["FED", "FOMC", "inflation", "tariff", "china", "oil", "treasury"]
+MACRO_TOPICS = ["FED", "FOMC", "inflation", "tariff", "china", "oil", "treasury", "rate", "GDP", "jobs", "unemployment", "CPI", "PPI"]
 
 
 def _iso_hours_ago_utc(hours: int) -> str:
     """Generate ISO timestamp for X hours ago."""
     dt = datetime.now(timezone.utc) - timedelta(hours=hours)
     return dt.strftime("%Y%m%dT%H%M%S")
+
+
+def fetch_market_snapshot() -> Dict[str, Any]:
+    """
+    Fetch current market data from local database first, fallback to yfinance.
+    Returns quick snapshot for context.
+    """
+    # Try to get from local DB first (from daily ingestion)
+    try:
+        from ..models import Price, BenchmarkPrice
+        from ..db import get_session
+        from datetime import date
+        
+        snapshot = {}
+        today = date.today()
+        
+        market_tickers = {
+            "SPY": "S&P 500",
+            "QQQ": "Nasdaq 100",
+            "DIA": "Dow Jones",
+            "IWM": "Russell 2000",
+            "GLD": "Gold",
+            "TLT": "20Y Treasury",
+        }
+        
+        with get_session() as sess:
+            for ticker, name in market_tickers.items():
+                # Try regular prices first
+                prices = sess.query(Price).filter(
+                    Price.ticker == ticker
+                ).order_by(Price.date.desc()).limit(2).all()
+                
+                if len(prices) >= 2:
+                    current = float(prices[0].close)
+                    prev = float(prices[1].close)
+                    change_pct = ((current - prev) / prev) * 100
+                    snapshot[name] = {
+                        "price": round(current, 2),
+                        "change_pct": round(change_pct, 2),
+                        "as_of": str(prices[0].date),
+                    }
+                else:
+                    # Try benchmark prices (SPY is stored there)
+                    bench = sess.query(BenchmarkPrice).filter(
+                        BenchmarkPrice.symbol == ticker
+                    ).order_by(BenchmarkPrice.date.desc()).limit(2).all()
+                    
+                    if len(bench) >= 2 and bench[0].adj_close and bench[1].adj_close:
+                        current = float(bench[0].adj_close)
+                        prev = float(bench[1].adj_close)
+                        change_pct = ((current - prev) / prev) * 100
+                        snapshot[name] = {
+                            "price": round(current, 2),
+                            "change_pct": round(change_pct, 2),
+                            "as_of": str(bench[0].date),
+                        }
+        
+        if snapshot:
+            logger.info(f"Got market snapshot from local DB: {len(snapshot)} indices")
+            return snapshot
+            
+    except Exception as e:
+        logger.debug(f"Local DB snapshot failed: {e}")
+    
+    # Fallback to yfinance
+    try:
+        import yfinance as yf
+        import time
+        
+        tickers = {
+            "SPY": "S&P 500",
+            "QQQ": "Nasdaq 100", 
+            "DIA": "Dow Jones",
+            "IWM": "Russell 2000",
+            "^VIX": "VIX",
+            "GLD": "Gold",
+            "TLT": "20Y Treasury",
+        }
+        
+        snapshot = {}
+        
+        # Fetch one at a time with small delay to avoid rate limits
+        for ticker, name in tickers.items():
+            try:
+                stock = yf.Ticker(ticker)
+                hist = stock.history(period="2d")
+                
+                if hist is not None and len(hist) >= 2:
+                    current = float(hist["Close"].iloc[-1])
+                    prev = float(hist["Close"].iloc[-2])
+                    change_pct = ((current - prev) / prev) * 100
+                    snapshot[name] = {
+                        "price": round(current, 2),
+                        "change_pct": round(change_pct, 2),
+                    }
+                time.sleep(0.2)  # Small delay between requests
+            except Exception as e:
+                logger.debug(f"Snapshot {ticker} failed: {e}")
+                continue
+        
+        return snapshot
+    except Exception as e:
+        logger.debug(f"Market snapshot failed: {e}")
+        return {}
+
+
+def fetch_earnings_calendar(tickers: List[str], days_ahead: int = 5) -> List[Dict[str, Any]]:
+    """
+    Check upcoming earnings for portfolio holdings.
+    Uses existing earnings service with fallback to yfinance.
+    """
+    upcoming = []
+    today = datetime.now().date()
+    cutoff = today + timedelta(days=days_ahead)
+    
+    # Try to use the existing earnings service first
+    try:
+        from .earnings import get_upcoming_earnings
+        
+        earnings_data = get_upcoming_earnings(tickers[:15], days_ahead=days_ahead)
+        
+        for item in earnings_data:
+            ticker = item.get("ticker", "")
+            ed_str = item.get("date", "")
+            if ed_str:
+                try:
+                    ed = datetime.strptime(ed_str, "%Y-%m-%d").date()
+                    if today <= ed <= cutoff:
+                        upcoming.append({
+                            "ticker": ticker,
+                            "date": ed_str,
+                            "days_until": (ed - today).days,
+                            "when": item.get("when", ""),  # BMO/AMC
+                        })
+                except ValueError:
+                    continue
+        
+        if upcoming:
+            return sorted(upcoming, key=lambda x: x.get("days_until", 999))
+    except Exception as e:
+        logger.debug(f"Earnings service failed: {e}")
+    
+    # Fallback to yfinance
+    try:
+        import yfinance as yf
+        import time
+        
+        # Only check top 10 holdings to save time and avoid rate limits
+        for ticker in tickers[:10]:
+            try:
+                stock = yf.Ticker(ticker)
+                cal = stock.calendar
+                
+                if cal is not None and not cal.empty:
+                    # Calendar might have earnings date
+                    if "Earnings Date" in cal.index:
+                        earnings_dates = cal.loc["Earnings Date"]
+                        if isinstance(earnings_dates, (list, tuple)) and len(earnings_dates) > 0:
+                            ed = earnings_dates[0]
+                            if hasattr(ed, 'date'):
+                                ed = ed.date()
+                            if today <= ed <= cutoff:
+                                upcoming.append({
+                                    "ticker": ticker,
+                                    "date": str(ed),
+                                    "days_until": (ed - today).days,
+                                })
+                time.sleep(0.3)  # Rate limit protection
+            except Exception as e:
+                logger.debug(f"Earnings check {ticker} failed: {e}")
+                continue
+        
+        return sorted(upcoming, key=lambda x: x.get("days_until", 999))
+    except Exception as e:
+        logger.debug(f"Earnings calendar failed: {e}")
+        return []
+
+
+def fetch_economic_calendar() -> List[Dict[str, Any]]:
+    """
+    Simple economic calendar - key events to watch.
+    """
+    # Static list of recurring important events (could be enhanced with API)
+    today = datetime.now()
+    day_of_week = today.weekday()
+    
+    events = []
+    
+    # FOMC meetings are typically every 6 weeks
+    # Jobs report first Friday of month
+    # CPI mid-month
+    
+    if today.day <= 7 and day_of_week == 4:  # First Friday
+        events.append({"event": "Jobs Report (likely)", "importance": "high"})
+    
+    if 10 <= today.day <= 15:
+        events.append({"event": "CPI Release (likely)", "importance": "high"})
+    
+    # Add based on current market context
+    return events
 
 
 def fetch_portfolio_tickers() -> List[str]:
@@ -116,9 +316,11 @@ def fetch_rss_headlines() -> List[Dict[str, Any]]:
     import xml.etree.ElementTree as ET
     
     feeds = [
-        ("Reuters Business", "https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best"),
-        ("CNBC Top", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114"),
-        ("MarketWatch", "http://feeds.marketwatch.com/marketwatch/topstories/"),
+        ("Yahoo Finance", "https://finance.yahoo.com/news/rssindex"),
+        ("CNBC Top", "https://www.cnbc.com/id/100003114/device/rss/rss.html"),
+        ("Seeking Alpha", "https://seekingalpha.com/market_currents.xml"),
+        ("Bloomberg Markets", "https://feeds.bloomberg.com/markets/news.rss"),
+        ("Investing.com News", "https://www.investing.com/rss/news.rss"),
     ]
     
     news = []
@@ -240,7 +442,9 @@ def aggregate_news(
 def generate_ai_market_brief(
     news_data: Dict[str, List[Dict[str, Any]]],
     portfolio_tickers: List[str],
-    brief_type: str = "midday"  # "midday" or "afternoon"
+    brief_type: str = "midday",  # "midday" or "afternoon"
+    market_snapshot: Optional[Dict[str, Any]] = None,
+    upcoming_earnings: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """
     Use OpenAI to generate an actionable market brief.
@@ -252,9 +456,29 @@ def generate_ai_market_brief(
     # Build context for the LLM
     context_parts = []
     
+    # Current date/time
+    now = datetime.now()
+    context_parts.append(f"## DATE: {now.strftime('%A, %B %d, %Y')} - {now.strftime('%I:%M %p')}")
+    
+    # Market snapshot
+    if market_snapshot:
+        context_parts.append("\n## MARKET SNAPSHOT (Live)")
+        for name, data in market_snapshot.items():
+            change = data.get("change_pct", 0)
+            arrow = "↑" if change > 0 else "↓" if change < 0 else "→"
+            context_parts.append(f"- {name}: {data.get('price', 'N/A')} ({arrow}{abs(change):.2f}%)")
+    
+    # Upcoming earnings
+    if upcoming_earnings:
+        context_parts.append("\n## UPCOMING EARNINGS (Portfolio)")
+        for e in upcoming_earnings[:5]:
+            days = e.get("days_until", 0)
+            when = "TODAY" if days == 0 else f"in {days} days" if days > 0 else f"{abs(days)} days ago"
+            context_parts.append(f"- {e['ticker']}: {e['date']} ({when})")
+    
     # Market news
     if news_data.get("market"):
-        context_parts.append("## MARKET NEWS")
+        context_parts.append("\n## MARKET NEWS")
         for item in news_data["market"][:8]:
             sentiment = item.get("sentiment", "")
             sent_str = f" (sentiment: {sentiment})" if sentiment else ""
@@ -279,28 +503,37 @@ def generate_ai_market_brief(
     
     time_label = "Midday (12 PM)" if brief_type == "midday" else "Market Close (4:30 PM)"
     
+    top_holdings = ', '.join(portfolio_tickers[:15])
+    
     system_prompt = f"""You are a senior portfolio manager's market analyst assistant.
-Write a concise, actionable {time_label} market brief email.
+Write a concise, actionable {time_label} market brief.
 
-Portfolio holdings: {', '.join(portfolio_tickers[:15])}
+Portfolio holdings include: {top_holdings}
 
-Your brief should:
-1. START with a 1-sentence market mood summary (bullish/bearish/mixed)
-2. Highlight 2-3 most important market-moving stories
-3. Flag any news affecting portfolio holdings with actionable context
-4. Note any geopolitical/macro risks to monitor
-5. End with 1-2 specific watchlist items or action items
+STRUCTURE (use these exact headers):
+📊 **MARKET MOOD** - One sentence: bullish/bearish/neutral with key driver
+📈 **KEY MOVERS** - 2-3 bullet points on biggest market stories TODAY
+🎯 **PORTFOLIO WATCH** - Holdings with news or earnings; what to watch
+⚠️ **RISKS** - Macro/geopolitical risks if any
+📋 **ACTION ITEMS** - 1-2 specific things to monitor or consider
 
-Format as a professional email - brief, scannable, no fluff.
-Use bullet points and bold for key items.
-Keep total length under 400 words.
+RULES:
+- Use data from the MARKET SNAPSHOT for current index levels
+- Reference specific tickers in **bold** 
+- Include percentage moves where available
+- If a holding has earnings soon, mention it
+- Be specific with numbers (e.g., "VIX at 18.5" not "VIX elevated")
+- NO generic sign-offs, closings, or pleasantries
+- NO "Best regards" or "Stay informed" type endings
+- Keep total length under 350 words
+- Today's date is provided in the context - use it
 """
 
-    user_prompt = f"""Generate the {time_label} market brief based on this news:
+    user_prompt = f"""Generate the {time_label} market brief based on this real-time data:
 
 {news_context}
 
-Remember: Be concise, actionable, and focus on what matters for the portfolio."""
+Focus on actionable intelligence. End immediately after ACTION ITEMS - no closing."""
 
     try:
         client = OpenAI(api_key=api_key)
@@ -424,16 +657,35 @@ def run_market_brief(brief_type: str = "midday") -> Dict[str, Any]:
     total_news = sum(len(v) for v in news_data.values())
     logger.info(f"Aggregated {total_news} news items")
     
-    # 3. Generate AI brief
-    brief_content = generate_ai_market_brief(news_data, portfolio_tickers, brief_type)
+    # 3. Fetch market snapshot
+    logger.info("Fetching market snapshot...")
+    market_snapshot = fetch_market_snapshot()
+    logger.info(f"Got snapshot for {len(market_snapshot)} indices")
     
-    # 4. Send email
+    # 4. Check upcoming earnings
+    logger.info("Checking upcoming earnings...")
+    upcoming_earnings = fetch_earnings_calendar(portfolio_tickers, days_ahead=5)
+    logger.info(f"Found {len(upcoming_earnings)} upcoming earnings")
+    
+    # 5. Generate AI brief
+    brief_content = generate_ai_market_brief(
+        news_data, 
+        portfolio_tickers, 
+        brief_type,
+        market_snapshot=market_snapshot,
+        upcoming_earnings=upcoming_earnings,
+    )
+    
+    # 6. Send email
     email_sent = send_market_brief_email(brief_content, brief_type, news_data)
     
     return {
         "status": "ok" if email_sent else "partial",
         "brief_type": brief_type,
         "news_count": total_news,
+        "news_breakdown": {k: len(v) for k, v in news_data.items()},
+        "market_snapshot": bool(market_snapshot),
+        "upcoming_earnings": len(upcoming_earnings),
         "portfolio_tickers": len(portfolio_tickers),
         "email_sent": email_sent,
         "brief_preview": brief_content[:500] + "..." if len(brief_content) > 500 else brief_content,

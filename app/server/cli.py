@@ -617,7 +617,10 @@ def market_brief_cmd(
     import logging
     logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(name)s:%(message)s')
     
-    from ..services.market_brief import run_market_brief, aggregate_news, generate_ai_market_brief, fetch_portfolio_tickers
+    from ..services.market_brief import (
+        run_market_brief, aggregate_news, generate_ai_market_brief, 
+        fetch_portfolio_tickers, fetch_market_snapshot, fetch_earnings_calendar
+    )
     
     if brief_type not in ("midday", "afternoon"):
         typer.echo("Brief type must be 'midday' or 'afternoon'")
@@ -635,7 +638,20 @@ def market_brief_cmd(
         total_news = sum(len(v) for v in news_data.values())
         typer.echo(f"  News items: {total_news} (market: {len(news_data['market'])}, portfolio: {len(news_data['portfolio'])}, macro: {len(news_data['macro'])})")
         
-        brief_content = generate_ai_market_brief(news_data, portfolio_tickers, brief_type)
+        # Fetch market snapshot and earnings
+        typer.echo("  Fetching market snapshot...")
+        market_snapshot = fetch_market_snapshot()
+        typer.echo(f"  Market snapshot: {len(market_snapshot)} indices")
+        
+        typer.echo("  Checking upcoming earnings...")
+        upcoming_earnings = fetch_earnings_calendar(portfolio_tickers, days_ahead=5)
+        typer.echo(f"  Upcoming earnings: {len(upcoming_earnings)} in next 5 days")
+        
+        brief_content = generate_ai_market_brief(
+            news_data, portfolio_tickers, brief_type,
+            market_snapshot=market_snapshot,
+            upcoming_earnings=upcoming_earnings,
+        )
         typer.echo("\n" + "="*60)
         typer.echo(brief_content)
         typer.echo("="*60)
@@ -643,6 +659,9 @@ def market_brief_cmd(
         result = run_market_brief(brief_type)
         typer.echo(f"  Status: {result['status']}")
         typer.echo(f"  News items: {result['news_count']}")
+        typer.echo(f"  News breakdown: {result.get('news_breakdown', {})}")
+        typer.echo(f"  Market snapshot: {'✓' if result.get('market_snapshot') else '✗'}")
+        typer.echo(f"  Upcoming earnings: {result.get('upcoming_earnings', 0)}")
         typer.echo(f"  Email sent: {'✓' if result['email_sent'] else '✗'}")
 
 
