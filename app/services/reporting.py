@@ -746,11 +746,29 @@ def build_weekly_report(
         except (ValueError, TypeError):
             pass
         
+        # Extract current drawdown as float
+        current_drawdown = None
+        try:
+            mdd_str = risk.get("mdd_252", "")
+            if mdd_str and mdd_str != "Data not available":
+                current_drawdown = float(mdd_str.replace("%", ""))
+        except (ValueError, TypeError):
+            pass
+        
+        # Calculate cash/fixed income percentage
+        cash_pct = 0.0
+        for s in sector_data.get("breakdown", []):
+            if s.get("sector") in ("Fixed Income", "Money Market", "Cash"):
+                cash_pct = s.get("weight", 0) * 100
+                break
+        
         risk_dashboard = build_risk_dashboard(
             holdings=holdings_for_stress,
             ticker_betas=ticker_betas,
             portfolio_vol=portfolio_vol_val,
             portfolio_beta=portfolio_beta_val,
+            current_drawdown=current_drawdown,
+            current_cash_pct=cash_pct,
             as_of=week_end,
         )
 

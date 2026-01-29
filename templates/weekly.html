@@ -297,7 +297,7 @@
   /* Risk Dashboard */
   .risk-dashboard {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 16px;
   }
   @media (max-width: 900px) { .risk-dashboard { grid-template-columns: 1fr; } }
@@ -385,6 +385,63 @@
     align-items: center;
     gap: 8px;
   }
+  
+  /* Term Structure & Vol Targeting */
+  .term-structure {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .term-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .term-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+  .term-badge.contango { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+  .term-badge.mild_backwardation { background: rgba(249, 115, 22, 0.2); color: #f97316; }
+  .term-badge.backwardation { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+  .term-badge.deep_contango { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+  
+  .vol-target-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-top: 8px;
+  }
+  .vol-target-action.hold { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+  .vol-target-action.reduce_risk { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+  .vol-target-action.monitor { background: rgba(245, 158, 11, 0.15); color: var(--accent-yellow); }
+  .vol-target-action.add_risk { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+  
+  .drawdown-meter {
+    height: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .drawdown-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+  }
+  .drawdown-fill.mild { background: var(--accent-green); }
+  .drawdown-fill.moderate { background: var(--accent-yellow); }
+  .drawdown-fill.severe { background: var(--accent-red); }
 
   /* Section titles */
   .section-title {
@@ -705,12 +762,50 @@
               <span>📉 {{ risk_dashboard.vix.trend }}</span>
               <span>Δ5D: {{ "%+.1f"|format(risk_dashboard.vix.change_5d) }}</span>
             </div>
-            <div class="vix-stats" style="margin-top: 8px;">
-              <span>20D Avg: {{ risk_dashboard.vix.avg_20d }}</span>
-              <span>1Y Range: {{ risk_dashboard.vix.low_1y }} - {{ risk_dashboard.vix.high_1y }}</span>
+            {% if risk_dashboard.term_structure and risk_dashboard.term_structure.ratio %}
+            <div class="term-structure" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+              <span style="color: var(--text-muted); font-size: 0.8rem;">Term Structure:</span>
+              <span class="term-value">{{ "%.2f"|format(risk_dashboard.term_structure.ratio) }}x</span>
+              <span class="term-badge {{ risk_dashboard.term_structure.structure }}">{{ risk_dashboard.term_structure.structure_label }}</span>
             </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+              VIX: {{ risk_dashboard.term_structure.vix }} / VIX3M: {{ risk_dashboard.term_structure.vix3m }}
+              <br>{{ risk_dashboard.term_structure.interpretation }}
+            </div>
+            {% endif %}
             {% else %}
             <div style="color: var(--text-muted);">VIX data not available</div>
+            {% endif %}
+          </div>
+
+          <!-- Vol Targeting Panel -->
+          <div class="risk-panel">
+            <div class="risk-panel-title">🎯 Volatility Targeting</div>
+            {% if risk_dashboard.vol_targeting %}
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+              <span class="vix-value" style="font-size: 1.5rem;">{{ risk_dashboard.vol_targeting.current_vol }}%</span>
+              <span style="color: var(--text-muted);">vol</span>
+              <span style="color: var(--text-muted);">/ {{ risk_dashboard.vol_targeting.target_vol }}% target</span>
+            </div>
+            <div class="vol-target-action {{ risk_dashboard.vol_targeting.action }}">
+              {{ risk_dashboard.vol_targeting.action_label }}
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 8px;">
+              {{ risk_dashboard.vol_targeting.reasoning }}
+            </div>
+            {% if risk_dashboard.current_drawdown is defined and risk_dashboard.current_drawdown is not none %}
+            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+              <div style="font-size: 0.8rem; color: var(--text-muted);">
+                Current Drawdown: <strong style="color: {% if risk_dashboard.current_drawdown <= -15 %}var(--accent-red){% elif risk_dashboard.current_drawdown <= -10 %}var(--accent-yellow){% else %}var(--text-primary){% endif %}">{{ "%.1f"|format(risk_dashboard.current_drawdown) }}%</strong>
+              </div>
+              <div class="drawdown-meter">
+                {% set dd_pct = [(-risk_dashboard.current_drawdown / 20 * 100), 100]|min %}
+                <div class="drawdown-fill {% if risk_dashboard.current_drawdown > -5 %}mild{% elif risk_dashboard.current_drawdown > -10 %}moderate{% else %}severe{% endif %}" style="width: {{ dd_pct }}%;"></div>
+              </div>
+            </div>
+            {% endif %}
+            {% else %}
+            <div style="color: var(--text-muted);">Volatility data not available</div>
             {% endif %}
           </div>
 

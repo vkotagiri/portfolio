@@ -46,6 +46,14 @@ def get_vol_alert_threshold() -> float:
 def get_beta_alert_threshold() -> float:
     return float(os.environ.get("BETA_ALERT_THRESHOLD", 1.3))
 
+def get_drawdown_alert_threshold() -> float:
+    """Drawdown % that triggers warning (default -10%)"""
+    return float(os.environ.get("DRAWDOWN_ALERT_THRESHOLD", -10))
+
+def get_drawdown_critical_threshold() -> float:
+    """Drawdown % that triggers critical alert (default -15%)"""
+    return float(os.environ.get("DRAWDOWN_CRITICAL_THRESHOLD", -15))
+
 
 def fetch_vix_from_fred(
     api_key: Optional[str] = None,
@@ -169,6 +177,177 @@ def fetch_vix_from_fred(
         return {"error": str(e)}
 
 
+def fetch_vix_term_structure(
+    api_key: Optional[str] = None,
+    as_of: Optional[date] = None
+) -> Dict[str, Any]:
+    """
+    Fetch VIX and VIX3M (3-month VIX) to analyze term structure.
+    
+    Term structure interpretation:
+    - Contango (VIX < VIX3M): Normal, markets calm/complacent
+    - Backwardation (VIX > VIX3M): Fear, hedging demand high
+    - Ratio > 1.1: Strong backwardation (significant fear)
+    - Ratio < 0.9: Deep contango (excessive complacency)
+    """
+    api_key = api_key or os.environ.get("FRED_API_KEY")
+    if not api_key:
+        return {"error": "FRED_API_KEY not configured"}
+    
+    try:
+        end_date = as_of or date.today()
+        start_date = end_date - timedelta(days=30)  # Just need recent data
+        
+        results = {}
+        
+        # Fetch both VIX and VIX3M
+        for series_id, key in [("VIXCLS", "vix"), ("VXVCLS", "vix3m")]:
+            url = "https://api.stlouisfed.org/fred/series/observations"
+            params = {
+                "series_id": series_id,
+                "api_key": api_key,
+                "file_type": "json",
+                "observation_start": start_date.isoformat(),
+                "observation_end": end_date.isoformat(),
+                "sort_order": "desc",
+                "limit": 5,  # Just need latest
+            }
+            
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            
+            for obs in data.get("observations", []):
+                try:
+                    results[key] = float(obs["value"])
+                    results[f"{key}_date"] = obs["date"]
+                    break
+                except (ValueError, KeyError):
+                    continue
+        
+        if "vix" not in results or "vix3m" not in results:
+            return {"error": "Could not fetch VIX term structure data"}
+        
+        # Calculate term structure metrics
+        vix = results["vix"]
+        vix3m = results["vix3m"]
+        ratio = vix / vix3m if vix3m > 0 else 1.0
+        spread = vix - vix3m
+        
+        # Classify structure
+        if ratio > 1.1:
+            structure = "backwardation"
+            structure_label = "🔴 Backwardation"
+            interpretation = "Market fear elevated - hedging demand high"
+        elif ratio > 1.0:
+            structure = "mild_backwardation"
+            structure_label = "🟠 Mild Backwardation"
+            interpretation = "Slightly elevated near-term concern"
+        elif ratio > 0.9:
+            structure = "contango"
+            structure_label = "🟢 Contango"
+            interpretation = "Normal market conditions"
+        else:
+            structure = "deep_contango"
+            structure_label = "🟡 Deep Contango"
+            interpretation = "Markets may be overly complacent"
+        
+        logger.info(f"VIX Term Structure: {vix:.2f}/{vix3m:.2f} = {ratio:.3f} ({structure_label})")
+        
+        return {
+            "vix": round(vix, 2),
+            "vix3m": round(vix3m, 2),
+            "ratio": round(ratio, 3),
+            "spread": round(spread, 2),
+            "structure": structure,
+            "structure_label": structure_label,
+            "interpretation": interpretation,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching VIX term structure: {e}")
+        return {"error": str(e)}
+
+
+def get_volatility_targeting_recommendation(
+    portfolio_vol: float,
+    vix_data: Dict[str, Any],
+    current_cash_pct: float = 0,
+    target_vol: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Generate volatility targeting recommendations.
+    
+    When portfolio vol exceeds target, recommend increasing cash/defensive positions.
+    
+    Returns:
+        - action: 'hold', 'reduce_risk', 'add_risk'
+        - target_cash_pct: suggested cash allocation
+        - reasoning: explanation
+    """
+    target_vol = target_vol or get_vol_alert_threshold()
+    
+    # Get VIX regime for context
+    vix_regime = vix_data.get("regime", "normal")
+    vix_current = vix_data.get("current", 18)
+    
+    # Calculate how much to de-risk based on vol overshoot
+    vol_ratio = portfolio_vol / target_vol if target_vol > 0 else 1.0
+    
+    result = {
+        "current_vol": round(portfolio_vol, 1),
+        "target_vol": round(target_vol, 1),
+        "vol_ratio": round(vol_ratio, 2),
+        "vix_regime": vix_regime,
+    }
+    
+    if vol_ratio > 1.3:  # Vol significantly above target
+        # Suggest reducing exposure
+        suggested_reduction = min(30, (vol_ratio - 1) * 25)  # Up to 30% reduction
+        target_cash = min(40, current_cash_pct + suggested_reduction)
+        
+        result.update({
+            "action": "reduce_risk",
+            "action_label": "⚠️ Reduce Exposure",
+            "target_cash_pct": round(target_cash, 0),
+            "reduction_pct": round(suggested_reduction, 0),
+            "reasoning": f"Portfolio vol ({portfolio_vol:.1f}%) is {(vol_ratio-1)*100:.0f}% above target ({target_vol:.0f}%). "
+                        f"Consider moving {suggested_reduction:.0f}% to cash/short-term bonds.",
+        })
+    elif vol_ratio > 1.1:  # Vol moderately above target
+        suggested_reduction = min(15, (vol_ratio - 1) * 20)
+        target_cash = min(30, current_cash_pct + suggested_reduction)
+        
+        result.update({
+            "action": "monitor",
+            "action_label": "🟡 Monitor Closely",
+            "target_cash_pct": round(target_cash, 0),
+            "reduction_pct": round(suggested_reduction, 0),
+            "reasoning": f"Portfolio vol ({portfolio_vol:.1f}%) is slightly above target ({target_vol:.0f}%). "
+                        f"Monitor positions and consider trimming high-beta names.",
+        })
+    elif vol_ratio < 0.7 and vix_regime in ("low", "normal"):  # Vol below target in calm market
+        suggested_increase = min(15, (1 - vol_ratio) * 20)
+        
+        result.update({
+            "action": "add_risk",
+            "action_label": "🟢 Room to Add",
+            "target_cash_pct": max(5, current_cash_pct - suggested_increase),
+            "increase_pct": round(suggested_increase, 0),
+            "reasoning": f"Portfolio vol ({portfolio_vol:.1f}%) is well below target ({target_vol:.0f}%) "
+                        f"and VIX is {vix_regime}. Room to add risk if opportunities arise.",
+        })
+    else:
+        result.update({
+            "action": "hold",
+            "action_label": "✅ On Target",
+            "target_cash_pct": round(current_cash_pct, 0),
+            "reasoning": f"Portfolio vol ({portfolio_vol:.1f}%) is within acceptable range of target ({target_vol:.0f}%).",
+        })
+    
+    return result
+
+
 def stress_test_portfolio(
     holdings: List[Dict[str, Any]],
     ticker_betas: Dict[str, float],
@@ -248,17 +427,21 @@ def generate_risk_alerts(
     vix_data: Dict[str, Any],
     portfolio_vol: Optional[float] = None,
     portfolio_beta: Optional[float] = None,
+    current_drawdown: Optional[float] = None,
+    term_structure: Optional[Dict[str, Any]] = None,
     vix_threshold: Optional[float] = None,
     vol_threshold: Optional[float] = None,
     beta_threshold: Optional[float] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Generate risk alerts based on VIX and portfolio metrics.
+    Generate risk alerts based on VIX, portfolio metrics, and drawdown.
     
     Thresholds are read from environment variables if not provided:
     - VIX_ALERT_THRESHOLD (default: 25)
     - VOL_ALERT_THRESHOLD (default: 20)
     - BETA_ALERT_THRESHOLD (default: 1.3)
+    - DRAWDOWN_ALERT_THRESHOLD (default: -10)
+    - DRAWDOWN_CRITICAL_THRESHOLD (default: -15)
     
     Returns list of alerts with severity (warning/critical) and message.
     """
@@ -266,6 +449,8 @@ def generate_risk_alerts(
     vix_threshold = vix_threshold or get_vix_alert_threshold()
     vol_threshold = vol_threshold or get_vol_alert_threshold()
     beta_threshold = beta_threshold or get_beta_alert_threshold()
+    dd_warning = get_drawdown_alert_threshold()
+    dd_critical = get_drawdown_critical_threshold()
     
     alerts = []
     
@@ -335,6 +520,40 @@ def generate_risk_alerts(
             "threshold": beta_threshold,
         })
     
+    # Drawdown alerts
+    if current_drawdown is not None:
+        if current_drawdown <= dd_critical:
+            alerts.append({
+                "type": "drawdown_critical",
+                "severity": "critical",
+                "title": "Severe Drawdown",
+                "message": f"Portfolio is down {abs(current_drawdown):.1f}% from peak. Consider defensive action or rebalancing.",
+                "value": current_drawdown,
+                "threshold": dd_critical,
+            })
+        elif current_drawdown <= dd_warning:
+            alerts.append({
+                "type": "drawdown_warning",
+                "severity": "warning",
+                "title": "Drawdown Alert",
+                "message": f"Portfolio is down {abs(current_drawdown):.1f}% from peak. Monitor closely.",
+                "value": current_drawdown,
+                "threshold": dd_warning,
+            })
+    
+    # VIX term structure alert (backwardation = fear)
+    if term_structure and "ratio" in term_structure:
+        ratio = term_structure["ratio"]
+        if ratio > 1.15:  # Strong backwardation
+            alerts.append({
+                "type": "vix_backwardation",
+                "severity": "warning",
+                "title": "VIX Backwardation",
+                "message": f"VIX term structure inverted ({ratio:.2f}x). Near-term fear elevated - hedge demand high.",
+                "value": ratio,
+                "threshold": 1.15,
+            })
+    
     return alerts
 
 
@@ -343,6 +562,8 @@ def build_risk_dashboard(
     ticker_betas: Dict[str, float],
     portfolio_vol: Optional[float] = None,
     portfolio_beta: Optional[float] = None,
+    current_drawdown: Optional[float] = None,
+    current_cash_pct: float = 0,
     as_of: Optional[date] = None,
     fred_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -351,7 +572,9 @@ def build_risk_dashboard(
     
     Returns:
         - vix: VIX data and regime classification
+        - term_structure: VIX vs VIX3M analysis
         - stress_test: SPY -10% scenario analysis
+        - vol_targeting: volatility targeting recommendation
         - alerts: list of risk alerts
         - summary: human-readable summary
     """
@@ -361,14 +584,28 @@ def build_risk_dashboard(
     # Remove DataFrame from serializable output
     vix_display = {k: v for k, v in vix_data.items() if k != "history"}
     
+    # Fetch VIX term structure
+    term_structure = fetch_vix_term_structure(api_key=fred_api_key, as_of=as_of)
+    
     # Run stress test
     stress_test = stress_test_portfolio(holdings, ticker_betas, spy_shock_pct=-10.0)
     
-    # Generate alerts
+    # Volatility targeting recommendation
+    vol_targeting = None
+    if portfolio_vol is not None:
+        vol_targeting = get_volatility_targeting_recommendation(
+            portfolio_vol=portfolio_vol,
+            vix_data=vix_data,
+            current_cash_pct=current_cash_pct,
+        )
+    
+    # Generate alerts (including drawdown and term structure)
     alerts = generate_risk_alerts(
         vix_data=vix_data,
         portfolio_vol=portfolio_vol,
         portfolio_beta=portfolio_beta,
+        current_drawdown=current_drawdown,
+        term_structure=term_structure if "error" not in term_structure else None,
     )
     
     # Build summary
@@ -399,7 +636,7 @@ def build_risk_dashboard(
     else:
         summary_parts.append("No active alerts")
     
-    return {
+    result = {
         "vix": vix_display,
         "stress_test": stress_test,
         "alerts": alerts,
@@ -407,6 +644,20 @@ def build_risk_dashboard(
         "has_alerts": len(alerts) > 0,
         "has_critical_alerts": any(a["severity"] == "critical" for a in alerts),
     }
+    
+    # Add term structure if available
+    if "error" not in term_structure:
+        result["term_structure"] = term_structure
+    
+    # Add volatility targeting if available
+    if vol_targeting:
+        result["vol_targeting"] = vol_targeting
+    
+    # Add drawdown if provided
+    if current_drawdown is not None:
+        result["current_drawdown"] = round(current_drawdown, 2)
+    
+    return result
 
 
 def format_risk_dashboard_for_llm(risk_data: Dict[str, Any]) -> str:
@@ -423,6 +674,29 @@ def format_risk_dashboard_for_llm(risk_data: Dict[str, Any]) -> str:
         lines.append(f"- 5-day change: {vix.get('change_5d', 0):+.2f}")
         lines.append(f"- 20-day avg: {vix.get('avg_20d', 0):.2f}")
         lines.append(f"- 1Y range: {vix.get('low_1y', 0):.2f} - {vix.get('high_1y', 0):.2f}")
+    
+    # Term structure section
+    term = risk_data.get("term_structure", {})
+    if term and "ratio" in term:
+        lines.append(f"\n### VIX Term Structure")
+        lines.append(f"- VIX: {term['vix']:.2f} | VIX3M: {term['vix3m']:.2f}")
+        lines.append(f"- Ratio: {term['ratio']:.3f} ({term.get('structure_label', 'N/A')})")
+        lines.append(f"- {term.get('interpretation', '')}")
+    
+    # Drawdown section
+    dd = risk_data.get("current_drawdown")
+    if dd is not None:
+        lines.append(f"\n### Drawdown Status")
+        lines.append(f"- Current drawdown from peak: {dd:.1f}%")
+    
+    # Volatility targeting section
+    vol_target = risk_data.get("vol_targeting", {})
+    if vol_target:
+        lines.append(f"\n### Volatility Targeting")
+        lines.append(f"- Current vol: {vol_target.get('current_vol', 0):.1f}%")
+        lines.append(f"- Target vol: {vol_target.get('target_vol', 0):.1f}%")
+        lines.append(f"- Action: {vol_target.get('action_label', 'N/A')}")
+        lines.append(f"- {vol_target.get('reasoning', '')}")
     
     # Stress test section
     stress = risk_data.get("stress_test", {})
